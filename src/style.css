@@ -231,7 +231,7 @@ html.light .cl-header { background: #0e1f1e; }
   z-index: 1;
   width: min(1280px, calc(100% - 40px));
   margin: 0 auto;
-  padding: 36px 0 56px;
+  padding: 18px 0 56px;
   display: grid;
   gap: 22px;
 }
