@@ -27,13 +27,13 @@ function randomHex(bytes: number): string {
 
 export async function renderApp(root: HTMLElement): Promise<void> {
   root.innerHTML = `
-  <header class="page-header">
+  <header class="page-header" role="banner">
     <h1>crypto-lab-kerberos</h1>
     <p>Needham-Schroeder (1978) → Lowe attack (1995) → Kerberos v5 (RFC 4120)</p>
-    <button id="theme-toggle" class="theme-toggle" style="position: absolute; top: 0; right: 0" aria-label="Switch to light mode">🌙</button>
+    <button id="theme-toggle" type="button" class="theme-toggle" style="position: absolute; top: 0; right: 0" aria-label="Switch to light mode">🌙</button>
   </header>
 
-  <section class="panel controls">
+  <section class="panel controls" aria-label="Flow controls">
     <label for="scenario">Scenario</label>
     <select id="scenario">
       <option value="ns">Needham-Schroeder</option>
@@ -42,15 +42,15 @@ export async function renderApp(root: HTMLElement): Promise<void> {
       <option value="kerberos">Kerberos v5</option>
     </select>
     <label for="clock">Clock offset (minutes)</label>
-    <input id="clock" type="range" min="-15" max="15" step="1" value="0" />
-    <output id="clock-value">0 min</output>
-    <button id="run">Run flow</button>
+    <input id="clock" type="range" min="-15" max="15" step="1" value="0" aria-describedby="clock-value" />
+    <output id="clock-value" for="clock" aria-live="polite">0 min</output>
+    <button id="run" type="button">Run flow</button>
   </section>
 
-  <section id="flow" class="panel"></section>
-  <section id="inspectors" class="grid"></section>
-  <section id="etype"></section>
-  <section id="attacks"></section>
+  <section id="flow" class="panel" role="region" aria-live="polite" aria-label="Protocol message flow"></section>
+  <section id="inspectors" class="grid" role="region" aria-label="Ticket inspector"></section>
+  <section id="etype" role="region" aria-label="Encryption type details"></section>
+  <section id="attacks" role="region" aria-label="Attack outcomes"></section>
 `;
 
   const scenario = byId<HTMLSelectElement>('scenario');

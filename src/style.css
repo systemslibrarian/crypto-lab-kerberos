@@ -52,7 +52,7 @@ body {
 
 .page-header {
   position: relative;
-  padding: 1.4rem 1rem 1.2rem;
+  padding: 1.4rem 4rem 1.2rem 1rem;
   background: var(--surface);
   border: 1px solid var(--border-color);
   border-radius: 14px;
@@ -85,6 +85,15 @@ body {
   color: var(--accent-hover);
 }
 
+.theme-toggle:focus-visible,
+.controls select:focus-visible,
+.controls input:focus-visible,
+.controls button:focus-visible,
+summary:focus-visible {
+  outline: 2px solid var(--accent);
+  outline-offset: 2px;
+}
+
 .panel {
   background: var(--surface);
   border: 1px solid var(--border-color);
@@ -96,7 +105,7 @@ body {
 .controls {
   display: grid;
   gap: 0.75rem;
-  grid-template-columns: repeat(5, minmax(120px, 1fr));
+  grid-template-columns: repeat(auto-fit, minmax(170px, 1fr));
   align-items: end;
 }
 
@@ -124,6 +133,12 @@ body {
 
 .controls button:hover {
   background: color-mix(in srgb, var(--accent-hover) 25%, var(--surface-alt));
+}
+
+.controls output {
+  color: var(--text-muted);
+  font-size: 0.95rem;
+  align-self: center;
 }
 
 pre,
@@ -219,11 +234,27 @@ pre {
     grid-template-columns: 1fr;
   }
 
+  .page-header {
+    padding-right: 1rem;
+  }
+
+  .theme-toggle {
+    position: static !important;
+    margin-top: 0.8rem;
+  }
+
   .grid {
     grid-template-columns: 1fr;
   }
 
   .ticket-line {
     grid-template-columns: 1fr;
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  * {
+    animation: none !important;
+    transition: none !important;
   }
 }
