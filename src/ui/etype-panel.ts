@@ -8,11 +8,10 @@ export async function renderETypePanel(baseKey: Uint8Array): Promise<string> {
   const dec = await decryptAes256CtsHmacSha196(baseKey, usage, enc.raw);
   const keys = await deriveKeKi(baseKey, usage);
 
-  return `<section class="panel"><h3>Etype 18 Derivation</h3>
+  return `<p style="color: var(--text-dim); margin-bottom: 12px;">aes256-cts-hmac-sha1-96 (etype 18) — derive K<sub>e</sub>/K<sub>i</sub> from the base key for usage ${usage}, encrypt, and decrypt round-trip.</p>
   <div class="ticket-line"><span>usage</span><code>${usage}</code></div>
   <div class="ticket-line"><span>Ke</span><code>${hex(keys.ke)}</code></div>
   <div class="ticket-line"><span>Ki</span><code>${hex(keys.ki)}</code></div>
   <div class="ticket-line"><span>ciphertext</span><code>${hex(enc.raw)}</code></div>
-  <div class="ticket-line"><span>decrypt ok</span><code>${hex(dec) === hex(plaintext) ? 'true' : 'false'}</code></div>
-  </section>`;
+  <div class="ticket-line"><span>decrypt ok</span><code>${hex(dec) === hex(plaintext) ? 'true' : 'false'}</code></div>`;
 }

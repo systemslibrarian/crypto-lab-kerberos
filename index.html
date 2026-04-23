@@ -4,6 +4,56 @@
     <meta charset="UTF-8" />
     <script>
       (function () {
+        var saved = localStorage.getItem('theme');
+        if (saved === 'light') document.documentElement.classList.add('light');
+      })();
+    </script>
+    <link rel="icon" type="image/svg+xml" href="/favicon.svg" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <meta name="description" content="Kerberos v5 lab — Needham-Schroeder (1978) → Lowe attack (1995) → Kerberos v5 (RFC 4120). Real AES-256-CTS-HMAC-SHA1-96 in the browser." />
+    <link rel="preconnect" href="https://fonts.googleapis.com" />
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+    <link
+      href="https://fonts.googleapis.com/css2?family=DM+Mono:wght@300;400;500&family=Fraunces:opsz,wght,SOFT@9..144,400,50;9..144,500,50&display=swap"
+      rel="stylesheet"
+    />
+    <title>Kerberos Lab — Crypto Lab</title>
+  </head>
+  <body>
+    <header class="cl-header" role="banner">
+      <div class="cl-header-left">
+        <div class="cl-badge" aria-hidden="true">KRB</div>
+        <div class="cl-header-text">
+          <span class="cl-title">KERBEROS LAB</span>
+          <a class="cl-sub" href="https://crypto-lab.systemslibrarian.dev/" target="_blank" rel="noopener">crypto-lab.systemslibrarian.dev</a>
+        </div>
+      </div>
+      <nav class="cl-header-nav" aria-label="Header navigation">
+        <a class="cl-nav-btn" href="https://github.com/systemslibrarian/crypto-lab-kerberos" target="_blank" rel="noopener">GitHub</a>
+        <button class="cl-theme-toggle" id="theme-toggle" type="button" aria-label="Toggle theme">☀</button>
+      </nav>
+    </header>
+
+    <main id="app" aria-label="Kerberos lab application"></main>
+
+    <footer class="footer">
+      <div class="wrap">
+        <div class="footer-quote">
+          <blockquote>So whether you eat or drink or whatever you do, do it all for the glory of God.</blockquote>
+          <cite>1 Corinthians 10:31</cite>
+        </div>
+      </div>
+    </footer>
+
+    <script type="module" src="/src/main.ts"></script>
+  </body>
+</html>
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="UTF-8" />
+    <script>
+      (function () {
         const saved = localStorage.getItem('theme');
         document.documentElement.setAttribute('data-theme', saved ?? 'dark');
       })();

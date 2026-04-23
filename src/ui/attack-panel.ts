@@ -24,13 +24,11 @@ export async function renderAttackPanel(nowMs: number, serviceEndtime: number): 
 
   const roastNote = 'AS-REP roasting path: pre-auth disabled account enables offline password guessing against enc-part.';
 
-  return `<section class="panel"><h3>Attack Panel</h3>
-    ${item('Lowe attack acceptance', lowe.bobAccepted ? 'Bob accepted forged run as Alice.' : 'Bob rejected.')}
+  return `${item('Lowe attack acceptance', lowe.bobAccepted ? 'Bob accepted forged run as Alice.' : 'Bob rejected.')}
     ${item('Replay attempt #1', first.reason)}
     ${item('Replay attempt #2', second.reason)}
     ${item('Clock skew', skew.reason)}
     ${item('Ticket time window', validity.reason)}
     ${item('Pass-the-ticket', ptt.reason)}
-    ${item('AS-REP roasting', roastNote)}
-  </section>`;
+    ${item('AS-REP roasting', roastNote)}`;
 }
