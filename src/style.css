@@ -1,0 +1,229 @@
+:root {
+  --bg: #0e141b;
+  --surface: #17212c;
+  --surface-alt: #1d2a37;
+  --text: #dce4ed;
+  --text-muted: #98a7b6;
+  --border-color: #2f4152;
+  --accent: #f4b44f;
+  --accent-hover: #ffd082;
+  --code-bg: #0b1117;
+  --shadow: rgba(0, 0, 0, 0.35) 0 12px 30px -12px;
+  --font-sans: 'IBM Plex Sans', 'Trebuchet MS', sans-serif;
+  --font-mono: 'IBM Plex Mono', 'Consolas', monospace;
+}
+
+:root[data-theme='light'] {
+  --bg: #f6f3ea;
+  --surface: #ffffff;
+  --surface-alt: #f2ebe0;
+  --text: #1c2733;
+  --text-muted: #596979;
+  --border-color: #c8d4df;
+  --accent: #ac3b1d;
+  --accent-hover: #d44a25;
+  --code-bg: #eef4fa;
+  --shadow: rgba(17, 40, 61, 0.18) 0 10px 24px -12px;
+}
+
+* {
+  box-sizing: border-box;
+}
+
+html,
+body {
+  margin: 0;
+  min-height: 100%;
+}
+
+body {
+  font-family: var(--font-sans);
+  background: radial-gradient(1200px 600px at 80% -100px, color-mix(in srgb, var(--accent) 20%, transparent), transparent),
+    linear-gradient(180deg, var(--bg), color-mix(in srgb, var(--bg) 90%, #000 10%));
+  color: var(--text);
+}
+
+#app {
+  width: min(1120px, 100% - 2rem);
+  margin: 1rem auto 2rem;
+  display: grid;
+  gap: 1rem;
+}
+
+.page-header {
+  position: relative;
+  padding: 1.4rem 1rem 1.2rem;
+  background: var(--surface);
+  border: 1px solid var(--border-color);
+  border-radius: 14px;
+  box-shadow: var(--shadow);
+}
+
+.page-header h1 {
+  margin: 0 0 0.4rem;
+  font-size: clamp(1.4rem, 2.8vw, 2rem);
+}
+
+.page-header p {
+  margin: 0;
+  color: var(--text-muted);
+}
+
+.theme-toggle {
+  width: 2.6rem;
+  height: 2.6rem;
+  border-radius: 50%;
+  border: 1px solid var(--border-color);
+  background: var(--surface-alt);
+  color: var(--text);
+  cursor: pointer;
+  z-index: 10;
+}
+
+.theme-toggle:hover {
+  border-color: var(--accent);
+  color: var(--accent-hover);
+}
+
+.panel {
+  background: var(--surface);
+  border: 1px solid var(--border-color);
+  border-radius: 14px;
+  padding: 1rem;
+  box-shadow: var(--shadow);
+}
+
+.controls {
+  display: grid;
+  gap: 0.75rem;
+  grid-template-columns: repeat(5, minmax(120px, 1fr));
+  align-items: end;
+}
+
+.controls label {
+  color: var(--text-muted);
+  font-size: 0.9rem;
+}
+
+.controls select,
+.controls input,
+.controls button {
+  width: 100%;
+  border-radius: 8px;
+  border: 1px solid var(--border-color);
+  background: var(--surface-alt);
+  color: var(--text);
+  padding: 0.55rem 0.7rem;
+  font-family: var(--font-sans);
+}
+
+.controls button {
+  background: color-mix(in srgb, var(--accent) 20%, var(--surface-alt));
+  cursor: pointer;
+}
+
+.controls button:hover {
+  background: color-mix(in srgb, var(--accent-hover) 25%, var(--surface-alt));
+}
+
+pre,
+code {
+  font-family: var(--font-mono);
+  background: var(--code-bg);
+  color: var(--text);
+}
+
+pre {
+  overflow-x: auto;
+  padding: 0.7rem;
+  border-radius: 8px;
+  border: 1px solid var(--border-color);
+}
+
+.msg-card {
+  margin-top: 0.8rem;
+  border: 1px dashed var(--border-color);
+  border-radius: 10px;
+  padding: 0.75rem;
+  background: color-mix(in srgb, var(--surface-alt) 78%, transparent);
+  animation: reveal 240ms ease both;
+}
+
+.msg-card h4 {
+  margin: 0 0 0.45rem;
+  color: var(--accent);
+}
+
+.grid {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 1rem;
+}
+
+.ticket-line {
+  display: grid;
+  grid-template-columns: 140px 1fr;
+  gap: 0.6rem;
+  margin-bottom: 0.55rem;
+}
+
+.ticket-line span {
+  color: var(--text-muted);
+}
+
+.ticket-line code {
+  border: 1px solid var(--border-color);
+  border-radius: 8px;
+  padding: 0.25rem 0.45rem;
+  display: block;
+  overflow-wrap: anywhere;
+}
+
+.attack-item {
+  border-top: 1px solid var(--border-color);
+  padding-top: 0.6rem;
+  margin-top: 0.6rem;
+}
+
+.attack-item h4 {
+  margin: 0 0 0.35rem;
+}
+
+.attack-item p {
+  margin: 0;
+  color: var(--text-muted);
+}
+
+.scripture-footer {
+  text-align: center;
+  padding: 2rem 1rem;
+  font-size: 0.85rem;
+  border-top: 1px solid var(--border-color);
+  color: var(--text-muted);
+  margin-top: 2rem;
+}
+
+@keyframes reveal {
+  from {
+    transform: translateY(7px);
+    opacity: 0;
+  }
+  to {
+    transform: translateY(0);
+    opacity: 1;
+  }
+}
+
+@media (max-width: 880px) {
+  .controls {
+    grid-template-columns: 1fr;
+  }
+
+  .grid {
+    grid-template-columns: 1fr;
+  }
+
+  .ticket-line {
+    grid-template-columns: 1fr;
+  }
+}
