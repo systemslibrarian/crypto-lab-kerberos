@@ -239,7 +239,7 @@ html.light .cl-header { background: #0e1f1e; }
 /* ── Hero ────────────────────────────────────────────────── */
 .hero {
   position: relative;
-  padding: 38px 36px 34px;
+  padding: 28px 36px;
   border: 1px solid var(--border);
   background:
     linear-gradient(145deg, rgba(53, 214, 187, 0.07), transparent 30%),
@@ -253,9 +253,26 @@ html.light .hero {
     rgba(255, 255, 255, 0.88);
 }
 
+.hero-body {
+  display: flex;
+  align-items: center;
+  gap: 40px;
+}
+
+.hero-left {
+  flex: 0 0 auto;
+}
+
+.hero-right {
+  flex: 1 1 0;
+  min-width: 0;
+  border-left: 1px solid var(--border);
+  padding-left: 40px;
+}
+
 .eyebrow {
   display: inline-flex; align-items: center; gap: 10px;
-  margin-bottom: 18px;
+  margin-bottom: 14px;
   color: var(--amber);
   text-transform: uppercase;
   letter-spacing: 0.16em;
@@ -266,9 +283,9 @@ html.light .hero {
 }
 
 .hero h1 {
-  max-width: 16ch;
+  max-width: 14ch;
   font-family: var(--serif);
-  font-size: clamp(2.4rem, 5.5vw, 4.2rem);
+  font-size: clamp(2.2rem, 4vw, 3.6rem);
   font-weight: 500;
   line-height: 0.98;
   color: var(--text-hi);
@@ -278,14 +295,13 @@ html.light .hero {
 .hero h1 span { color: var(--teal); font-style: italic; }
 
 .hero p {
-  max-width: 68ch;
-  margin-top: 18px;
   color: var(--text);
   font-size: 13.5px;
+  margin-top: 0;
 }
 
 .hero-stats {
-  margin-top: 22px;
+  margin-top: 18px;
   display: flex;
   flex-wrap: wrap;
   gap: 8px;
@@ -619,7 +635,9 @@ html.light .footer-quote {
   #app, .wrap { width: min(100% - 24px, 1280px); padding-left: 0; padding-right: 0; }
   #app { padding-top: 22px; gap: 16px; }
 
-  .hero { padding: 26px 22px; }
+  .hero { padding: 22px 18px; }
+  .hero-body { flex-direction: column; gap: 20px; }
+  .hero-right { border-left: none; border-top: 1px solid var(--border); padding-left: 0; padding-top: 18px; }
   .hero h1 { font-size: clamp(2rem, 9vw, 3rem); }
   .hero p { font-size: 13px; }
 

@@ -122,15 +122,21 @@ function renderTimeline(active: ScenarioKey): string {
 export async function renderApp(root: HTMLElement): Promise<void> {
   root.innerHTML = `
   <section class="hero" aria-labelledby="hero-title">
-    <span class="eyebrow">Authentication Protocol Lab</span>
-    <h1 id="hero-title">Forty-seven years of <span>authentication</span>.</h1>
-    <p>Walk the arc from Needham-Schroeder (1978) through Gavin Lowe\u2019s man-in-the-middle (1995) to Kerberos v5 (RFC 4120), with real AES-256-CTS-HMAC-SHA1-96 encryption running in your browser via WebCrypto. Watch tickets get issued, replays get caught, and clock skew kill an exchange.</p>
-    <div class="hero-stats">
-      <span class="hero-stat">RFC 3961 / 3962</span>
-      <span class="hero-stat">RFC 4120</span>
-      <span class="hero-stat">AES-256-CTS-HMAC-SHA1-96</span>
-      <span class="hero-stat">PBKDF2-HMAC-SHA1 \u00d7 4096</span>
-      <span class="hero-stat">@noble/hashes</span>
+    <div class="hero-body">
+      <div class="hero-left">
+        <span class="eyebrow">Authentication Protocol Lab</span>
+        <h1 id="hero-title">Forty-seven years of <span>authentication</span>.</h1>
+      </div>
+      <div class="hero-right">
+        <p>Walk the arc from Needham-Schroeder (1978) through Gavin Lowe\u2019s man-in-the-middle (1995) to Kerberos v5 (RFC 4120), with real AES-256-CTS-HMAC-SHA1-96 encryption running in your browser via WebCrypto. Watch tickets get issued, replays get caught, and clock skew kill an exchange.</p>
+        <div class="hero-stats">
+          <span class="hero-stat">RFC 3961 / 3962</span>
+          <span class="hero-stat">RFC 4120</span>
+          <span class="hero-stat">AES-256-CTS-HMAC-SHA1-96</span>
+          <span class="hero-stat">PBKDF2-HMAC-SHA1 \u00d7 4096</span>
+          <span class="hero-stat">@noble/hashes</span>
+        </div>
+      </div>
     </div>
   </section>
 
