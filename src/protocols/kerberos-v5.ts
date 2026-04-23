@@ -3,8 +3,12 @@ import { stringToKeyAes256 } from '../crypto/pbkdf2-string2key';
 import { KeyDistributionCenter, type AsRep, type EncTicket, type TicketBody, type TgsRep } from '../principals/kdc';
 import { ServicePrincipal } from '../principals/service';
 
+export type KerberosParty = 'Client' | 'KDC' | 'Service';
+
 export type FlowRecord = {
   label: string;
+  from: KerberosParty;
+  to: KerberosParty;
   bytesHex: string;
   decoded: Record<string, string | number | string[]>;
 };
@@ -12,9 +16,12 @@ export type FlowRecord = {
 export type KerberosRun = {
   records: FlowRecord[];
   apAccepted: boolean;
+  apReason?: string;
   apRep?: Uint8Array;
   tgt: EncTicket;
   serviceTicket: EncTicket;
+  clientSvcKey: Uint8Array;
+  lastAuth: { cname: string; ctime: number; cusec: number };
 };
 
 const encoder = new TextEncoder();
@@ -65,11 +72,15 @@ export async function asExchange(
   const records: FlowRecord[] = [
     {
       label: 'AS-REQ',
+      from: 'Client',
+      to: 'KDC',
       bytesHex: toHex(jsonBytes({ client: clientName, realm: kdc.realm, nonce })),
       decoded: { client: clientName, realm: kdc.realm, nonce },
     },
     {
       label: 'AS-REP',
+      from: 'KDC',
+      to: 'Client',
       bytesHex: toHex(asRep.tgt.cipher),
       decoded: { nonce: asRep.nonce, endtime: asRep.endtime, sname: asRep.sname, etype: '18' },
     },
@@ -96,11 +107,15 @@ export async function tgsExchange(
   const records: FlowRecord[] = [
     {
       label: 'TGS-REQ',
+      from: 'Client',
+      to: 'KDC',
       bytesHex: toHex(authCipher.raw),
       decoded: auth as unknown as Record<string, string | number>,
     },
     {
       label: 'TGS-REP',
+      from: 'KDC',
+      to: 'Client',
       bytesHex: toHex(tgsRep.serviceTicket.cipher),
       decoded: { endtime: tgsRep.endtime, etype: '18', sname: serviceName },
     },
@@ -144,6 +159,8 @@ export async function apExchange(
       records: [
         {
           label: 'AP-REQ',
+          from: 'Client',
+          to: 'Service',
           bytesHex: toHex(authCipher.raw),
           decoded: auth as unknown as Record<string, string | number>,
         },
@@ -158,6 +175,8 @@ export async function apExchange(
       records: [
         {
           label: 'AP-REQ',
+          from: 'Client',
+          to: 'Service',
           bytesHex: toHex(authCipher.raw),
           decoded: auth as unknown as Record<string, string | number>,
         },
@@ -176,11 +195,15 @@ export async function apExchange(
     records: [
       {
         label: 'AP-REQ',
+        from: 'Client',
+        to: 'Service',
         bytesHex: toHex(authCipher.raw),
         decoded: auth as unknown as Record<string, string | number>,
       },
       {
         label: 'AP-REP',
+        from: 'Service',
+        to: 'Client',
         bytesHex: toHex(apRep.raw),
         decoded: { ctime: authOnService.ctime, cusec: authOnService.cusec, seq: 1, subkey: 'none' },
       },
@@ -193,11 +216,20 @@ export async function runKerberosV5(kdc: KeyDistributionCenter, service: Service
   const tgs = await tgsExchange(kdc, as.asRep, clientName, as.clientTgsKey, service.name, nowMs);
   const ap = await apExchange(service, tgs.tgsRep.serviceTicket, clientName, tgs.clientSvcKey, nowMs);
 
+  // Recover the authenticator we just sent so the UI can replay it on demand.
+  const lastAuthRecord = ap.records.find((r) => r.label === 'AP-REQ');
+  const lastAuth = lastAuthRecord
+    ? (lastAuthRecord.decoded as unknown as { cname: string; ctime: number; cusec: number })
+    : { cname: clientName, ctime: nowMs, cusec: 0 };
+
   return {
     records: [...as.records, ...tgs.records, ...ap.records],
     apAccepted: ap.accepted,
+    apReason: ap.reason,
     apRep: ap.apRep,
     tgt: as.asRep.tgt,
     serviceTicket: tgs.tgsRep.serviceTicket,
+    clientSvcKey: tgs.clientSvcKey,
+    lastAuth,
   };
 }
