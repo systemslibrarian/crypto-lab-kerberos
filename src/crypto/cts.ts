@@ -1,76 +1,90 @@
+import { unsafe } from '@noble/ciphers/aes.js';
+
 const BLOCK_SIZE = 16;
 
-function toArrayBuffer(input: Uint8Array): ArrayBuffer {
-  return input.buffer.slice(input.byteOffset, input.byteOffset + input.byteLength) as ArrayBuffer;
+/**
+ * AES-CBC with ciphertext stealing (CS3, the variant RFC 3962 uses for
+ * Kerberos): the last two cipher blocks are swapped and the final block is
+ * truncated so the ciphertext is exactly the length of the plaintext — no
+ * padding, no expansion.
+ *
+ * The block primitive is @noble/ciphers' raw (unpadded) AES block cipher. We
+ * deliberately do NOT use WebCrypto's AES-CBC here: it always applies PKCS#7
+ * padding, and on decrypt it validates that padding, so using it for the raw
+ * single-block operations CTS needs throws "bad decrypt" whenever a recovered
+ * block doesn't happen to end in valid padding bytes. The block cipher is
+ * verified against the FIPS-197 AES-256 known-answer vector in test/cts.test.ts.
+ *
+ * noble mutates the block in place and reuses the key schedule across calls, so
+ * each operation gets a fresh copy of its input block.
+ */
+function aesBlock(key: Uint8Array): { encrypt(b: Uint8Array): Uint8Array<ArrayBuffer>; decrypt(b: Uint8Array): Uint8Array<ArrayBuffer> } {
+  const encKey = unsafe.expandKeyLE(key);
+  const decKey = unsafe.expandKeyDecLE(key);
+  // noble mutates the block in place; copy first so the input is untouched and
+  // the result is a fresh, owned buffer.
+  return {
+    encrypt: (b) => {
+      const blk = Uint8Array.from(b);
+      unsafe.encryptBlock(encKey, blk);
+      return blk;
+    },
+    decrypt: (b) => {
+      const blk = Uint8Array.from(b);
+      unsafe.decryptBlock(decKey, blk);
+      return blk;
+    },
+  };
 }
 
 function xor(a: Uint8Array, b: Uint8Array): Uint8Array {
   const out = new Uint8Array(a.length);
-  for (let i = 0; i < a.length; i += 1) {
-    out[i] = a[i] ^ b[i];
-  }
+  for (let i = 0; i < a.length; i += 1) out[i] = a[i] ^ b[i];
   return out;
-}
-
-async function importAesKey(key: Uint8Array, usage: 'encrypt' | 'decrypt'): Promise<CryptoKey> {
-  return crypto.subtle.importKey('raw', toArrayBuffer(key), { name: 'AES-CBC' }, false, [usage]);
-}
-
-async function aesCbc(key: Uint8Array, iv: Uint8Array, data: Uint8Array, mode: 'encrypt' | 'decrypt'): Promise<Uint8Array> {
-  const cryptoKey = await importAesKey(key, mode);
-  const result = mode === 'encrypt'
-    ? await crypto.subtle.encrypt({ name: 'AES-CBC', iv: toArrayBuffer(iv) }, cryptoKey, toArrayBuffer(data))
-    : await crypto.subtle.decrypt({ name: 'AES-CBC', iv: toArrayBuffer(iv) }, cryptoKey, toArrayBuffer(data));
-  return new Uint8Array(result);
-}
-
-async function aesEcbBlockEncrypt(key: Uint8Array, block: Uint8Array): Promise<Uint8Array> {
-  const zeroIv = new Uint8Array(BLOCK_SIZE);
-  const encrypted = await aesCbc(key, zeroIv, block, 'encrypt');
-  return encrypted.slice(0, BLOCK_SIZE);
-}
-
-async function aesEcbBlockDecrypt(key: Uint8Array, block: Uint8Array): Promise<Uint8Array> {
-  const zeroIv = new Uint8Array(BLOCK_SIZE);
-  const decrypted = await aesCbc(key, zeroIv, block, 'decrypt');
-  return decrypted.slice(0, BLOCK_SIZE);
 }
 
 export async function ctsCbcEncrypt(key: Uint8Array, plaintext: Uint8Array): Promise<Uint8Array> {
   if (plaintext.length < BLOCK_SIZE) {
     throw new Error('CTS requires at least one full block');
   }
-  if (plaintext.length % BLOCK_SIZE === 0) {
-    return aesCbc(key, new Uint8Array(BLOCK_SIZE), plaintext, 'encrypt');
-  }
-
+  const aes = aesBlock(key);
   const m = plaintext.length;
   const r = m % BLOCK_SIZE;
+
+  // Exact multiple of the block size (including a single block): plain CBC,
+  // zero IV, no stealing and no padding.
+  if (r === 0) {
+    const out = new Uint8Array(m);
+    let prev = new Uint8Array(BLOCK_SIZE);
+    for (let i = 0; i < m; i += BLOCK_SIZE) {
+      prev = aes.encrypt(xor(plaintext.subarray(i, i + BLOCK_SIZE), prev));
+      out.set(prev, i);
+    }
+    return out;
+  }
+
   const n = Math.ceil(m / BLOCK_SIZE);
   const c = new Uint8Array(m);
 
   let prev = new Uint8Array(BLOCK_SIZE);
   for (let i = 0; i < n - 2; i += 1) {
-    const block = plaintext.slice(i * BLOCK_SIZE, (i + 1) * BLOCK_SIZE);
-    const x = xor(block, prev);
-    const y = await aesEcbBlockEncrypt(key, x);
-    c.set(y, i * BLOCK_SIZE);
-    prev = new Uint8Array(y);
+    prev = aes.encrypt(xor(plaintext.subarray(i * BLOCK_SIZE, (i + 1) * BLOCK_SIZE), prev));
+    c.set(prev, i * BLOCK_SIZE);
   }
 
-  const penult = plaintext.slice((n - 2) * BLOCK_SIZE, (n - 1) * BLOCK_SIZE);
-  const last = plaintext.slice((n - 1) * BLOCK_SIZE);
+  const penult = plaintext.subarray((n - 2) * BLOCK_SIZE, (n - 1) * BLOCK_SIZE);
+  const last = plaintext.subarray((n - 1) * BLOCK_SIZE);
 
-  const xN1 = xor(penult, prev);
-  const yN1 = await aesEcbBlockEncrypt(key, xN1);
+  const yN1 = aes.encrypt(xor(penult, prev));
 
   const padded = new Uint8Array(BLOCK_SIZE);
   padded.set(last, 0);
-  const xN = xor(padded, yN1);
-  const yN = await aesEcbBlockEncrypt(key, xN);
+  const yN = aes.encrypt(xor(padded, yN1));
 
+  // Swap: the full final block goes in the penultimate slot, the truncated
+  // previous block goes last (CS3 ordering).
   c.set(yN, (n - 2) * BLOCK_SIZE);
-  c.set(yN1.slice(0, r), (n - 1) * BLOCK_SIZE);
+  c.set(yN1.subarray(0, r), (n - 1) * BLOCK_SIZE);
 
   return c;
 }
@@ -79,39 +93,44 @@ export async function ctsCbcDecrypt(key: Uint8Array, ciphertext: Uint8Array): Pr
   if (ciphertext.length < BLOCK_SIZE) {
     throw new Error('CTS requires at least one full block');
   }
-  if (ciphertext.length % BLOCK_SIZE === 0) {
-    return aesCbc(key, new Uint8Array(BLOCK_SIZE), ciphertext, 'decrypt');
-  }
-
+  const aes = aesBlock(key);
   const m = ciphertext.length;
   const r = m % BLOCK_SIZE;
+
+  if (r === 0) {
+    const out = new Uint8Array(m);
+    let prev: Uint8Array = new Uint8Array(BLOCK_SIZE);
+    for (let i = 0; i < m; i += BLOCK_SIZE) {
+      const cblk = ciphertext.subarray(i, i + BLOCK_SIZE);
+      out.set(xor(aes.decrypt(cblk), prev), i);
+      prev = cblk;
+    }
+    return out;
+  }
+
   const n = Math.ceil(m / BLOCK_SIZE);
   const p = new Uint8Array(m);
 
-  let prev = new Uint8Array(BLOCK_SIZE);
+  let prev: Uint8Array = new Uint8Array(BLOCK_SIZE);
   for (let i = 0; i < n - 2; i += 1) {
-    const block = ciphertext.slice(i * BLOCK_SIZE, (i + 1) * BLOCK_SIZE);
-    const x = await aesEcbBlockDecrypt(key, block);
-    const y = xor(x, prev);
-    p.set(y, i * BLOCK_SIZE);
+    const block = ciphertext.subarray(i * BLOCK_SIZE, (i + 1) * BLOCK_SIZE);
+    p.set(xor(aes.decrypt(block), prev), i * BLOCK_SIZE);
     prev = block;
   }
 
-  const cN1Prime = ciphertext.slice((n - 2) * BLOCK_SIZE, (n - 1) * BLOCK_SIZE);
-  const cNPrime = ciphertext.slice((n - 1) * BLOCK_SIZE);
+  const cN1Prime = ciphertext.subarray((n - 2) * BLOCK_SIZE, (n - 1) * BLOCK_SIZE); // = yN
+  const cNPrime = ciphertext.subarray((n - 1) * BLOCK_SIZE); // = yN1[0:r]
 
-  const x = await aesEcbBlockDecrypt(key, cN1Prime);
+  const x = aes.decrypt(cN1Prime); // = padded ⊕ yN1
   const pN = new Uint8Array(r);
-  for (let i = 0; i < r; i += 1) {
-    pN[i] = x[i] ^ cNPrime[i];
-  }
+  for (let i = 0; i < r; i += 1) pN[i] = x[i] ^ cNPrime[i];
 
+  // Reconstruct the full penultimate ciphertext block yN1 = cNPrime || x[r:].
   const cN1 = new Uint8Array(BLOCK_SIZE);
   cN1.set(cNPrime, 0);
-  cN1.set(x.slice(r), r);
+  cN1.set(x.subarray(r), r);
 
-  const y = await aesEcbBlockDecrypt(key, cN1);
-  const pN1 = xor(y, prev);
+  const pN1 = xor(aes.decrypt(cN1), prev);
 
   p.set(pN1, (n - 2) * BLOCK_SIZE);
   p.set(pN, (n - 1) * BLOCK_SIZE);

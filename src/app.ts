@@ -9,6 +9,8 @@ import { KeyDistributionCenter, type TicketBody } from './principals/kdc';
 import { ServicePrincipal } from './principals/service';
 import { runKerberosV5, type KerberosRun } from './protocols/kerberos-v5';
 import { decryptAes256CtsHmacSha196, encryptAes256CtsHmacSha196 } from './crypto/etype-aes256';
+import { pbkdf2HmacSha1 } from './crypto/pbkdf2-string2key';
+import { dk, hex, utf8Bytes } from './crypto/simplified-profile';
 
 type ScenarioKey = 'ns' | 'lowe-attack' | 'lowe-fix' | 'kerberos';
 
@@ -43,7 +45,10 @@ function escape(s: string): string {
 }
 
 function resultLine(ok: boolean, message: string): string {
-  return `<div class="flow-result ${ok ? 'ok' : 'bad'}">${escape(message)}</div>`;
+  // The glyph carries the pass/fail state for users who can't perceive the
+  // red/green colour (WCAG 1.4.1). The visually-hidden word does the same for
+  // screen readers without doubling up the glyph.
+  return `<div class="flow-result ${ok ? 'ok' : 'bad'}"><span class="result-glyph" aria-hidden="true">${ok ? '✓' : '✗'}</span><span class="sr-only">${ok ? 'Pass: ' : 'Fail: '}</span>${escape(message)}</div>`;
 }
 
 function fromHex(input: string): Uint8Array {
@@ -111,9 +116,11 @@ function renderTimeline(active: ScenarioKey): string {
   return `<aside class="timeline" aria-label="Timeline">
     <span class="kicker">47 years</span>
     <ol>
-      ${SCENARIOS.map((s) => `<li data-key="${s.key}" class="${s.key === active ? 'active' : ''}" role="button" tabindex="0"${s.key === active ? ' aria-current="true"' : ''}>
-          <span class="year">${escape(s.year)}</span>
-          <span class="label">${escape(s.label)}</span>
+      ${SCENARIOS.map((s) => `<li data-key="${s.key}" class="${s.key === active ? 'active' : ''}">
+          <button type="button" class="timeline-step"${s.key === active ? ' aria-current="true"' : ''}>
+            <span class="year">${escape(s.year)}</span>
+            <span class="label">${escape(s.label)}</span>
+          </button>
         </li>`).join('')}
     </ol>
   </aside>`;
@@ -146,7 +153,7 @@ export async function renderApp(root: HTMLElement): Promise<void> {
       <section id="selfcheck-panel" class="panel" aria-label="Self-check">
         <span class="kicker">Live verification</span>
         <h2>Self-check</h2>
-        <p style="color: var(--text-dim); margin-bottom: 10px; font-size: 12.5px;">These three checks run on every page load against the actual crypto in your browser. If any go red, the demo isn't trustworthy.</p>
+        <p style="color: var(--text-dim); margin-bottom: 10px; font-size: 12.5px;">These checks run on every page load against the actual crypto in your browser — including a published <b>RFC 3962 §B</b> known-answer vector. If any go red, the demo isn't trustworthy.</p>
         <div id="selfcheck" class="selfcheck"></div>
       </section>
 
@@ -200,6 +207,11 @@ export async function renderApp(root: HTMLElement): Promise<void> {
   const selfcheckMount = byId<HTMLElement>('selfcheck');
 
   let lastKerberos: KerberosRun | null = null;
+  // Dragging the clock slider (or rapid clicks) fires runScenario() repeatedly,
+  // and each run is full of awaits. Without this, a slower earlier run can finish
+  // after a newer one and paint stale output. Each run takes a token; a run only
+  // paints while it is still the latest.
+  let runToken = 0;
 
   function paintReplayPanel(replayBadge?: { ok: boolean; text: string }): void {
     if (!lastKerberos || !lastKerberos.apAccepted) {
@@ -227,19 +239,35 @@ export async function renderApp(root: HTMLElement): Promise<void> {
         if (!lastKerberos) return;
         const { cname, ctime, cusec } = lastKerberos.lastAuth;
         const replayKey = `${cname}:${ctime}:${cusec}`;
-        if (service.hasReplay(replayKey)) {
-          paintReplayPanel({ ok: false, text: 'rejected: replay cache hit' });
-        } else {
-          // Genuinely fresh (unlikely — the original AP succeeded so it's already cached)
-          service.rememberReplay(replayKey, Date.now());
-          paintReplayPanel({ ok: true, text: 'accepted (no prior entry)' });
-        }
+        // The original AP-REQ succeeded, so this exact (cname, ctime, cusec) is
+        // already in the replay cache. Resubmitting the identical ciphertext —
+        // cipher and HMAC still verify perfectly — must still be refused. That
+        // is the whole point of the replay cache.
+        const rejected = service.hasReplay(replayKey);
+        paintReplayPanel(
+          rejected
+            ? { ok: false, text: 'rejected: replay cache hit' }
+            : { ok: true, text: 'accepted: no prior entry' },
+        );
       });
     }
   }
 
   async function runSelfCheck(): Promise<void> {
     const checks: { name: string; ok: boolean; msg: string }[] = [];
+
+    // 0. RFC 3962 §B string-to-key known-answer vector — proves the in-browser
+    //    derivation (PBKDF2 → n-fold → DR/DK) interoperates with real Kerberos,
+    //    not merely with itself.
+    try {
+      const tkey = await pbkdf2HmacSha1('password', 'ATHENA.MIT.EDUraeburn', 1200);
+      const got = hex(await dk(tkey, utf8Bytes('kerberos')));
+      const want = '55a6ac740ad17b4846941051e1e8b0a7548d93b0ab30a8bc3ff16280382b8c2a';
+      const ok = got === want;
+      checks.push({ name: 'RFC 3962 §B s2k vector', ok, msg: ok ? `matches ${want.slice(0, 8)}…` : 'MISMATCH' });
+    } catch (e) {
+      checks.push({ name: 'RFC 3962 §B s2k vector', ok: false, msg: String(e) });
+    }
 
     // 1. AES-256-CTS-HMAC-SHA1-96 round-trip
     try {
@@ -280,22 +308,19 @@ export async function renderApp(root: HTMLElement): Promise<void> {
     }
 
     selfcheckMount.innerHTML = checks
-      .map((c) => `<div class="check ${c.ok ? 'ok' : 'bad'}"><span class="pip" aria-label="${c.ok ? 'pass' : 'fail'}"></span><span class="name">${escape(c.name)}</span><span class="msg">${escape(c.msg)}</span></div>`)
+      .map((c) => `<div class="check ${c.ok ? 'ok' : 'bad'}"><span class="pip" aria-hidden="true">${c.ok ? '✓' : '✗'}</span><span class="sr-only">${c.ok ? 'Pass:' : 'Fail:'}</span><span class="name">${escape(c.name)}</span><span class="msg">${escape(c.msg)}</span></div>`)
       .join('');
   }
 
   function paintTimeline(key: ScenarioKey): void {
     timelineMount.innerHTML = renderTimeline(key);
-    timelineMount.querySelectorAll<HTMLLIElement>('li[data-key]').forEach((li) => {
-      const activate = (): void => {
-        const k = li.getAttribute('data-key') as ScenarioKey | null;
+    timelineMount.querySelectorAll<HTMLButtonElement>('.timeline-step').forEach((btn) => {
+      // Native <button>, so Enter/Space activation and focus come for free.
+      btn.addEventListener('click', () => {
+        const k = btn.closest('li')?.getAttribute('data-key') as ScenarioKey | null;
         if (!k) return;
         scenario.value = k;
         void runScenario();
-      };
-      li.addEventListener('click', activate);
-      li.addEventListener('keydown', (e) => {
-        if (e.key === 'Enter' || e.key === ' ') { e.preventDefault(); activate(); }
       });
     });
   }
@@ -322,10 +347,16 @@ export async function renderApp(root: HTMLElement): Promise<void> {
   }
 
   async function runScenario(): Promise<void> {
+    const myToken = ++runToken;
+    const superseded = (): boolean => myToken !== runToken;
+
+    // The KDC and service run on the true clock (baseNow); the slider skews the
+    // client's clock relative to it, which is what drives the AP skew defense.
     const baseNow = Date.now();
     const offsetMin = Number.parseInt(clock.value, 10);
     const offset = offsetMin * 60 * 1000;
-    const nowMs = baseNow + offset;
+    const clientNowMs = baseNow + offset;
+    const nowMs = baseNow;
     clockValue.textContent = `${offsetMin > 0 ? '+' : ''}${offsetMin} min`;
 
     const key = scenario.value as ScenarioKey;
@@ -341,8 +372,9 @@ export async function renderApp(root: HTMLElement): Promise<void> {
     if (key === 'ns') {
       const keys = await buildNsKeys();
       const ns = await runNeedhamSchroeder(keys);
+      if (superseded()) return;
       flow.innerHTML =
-        `${flowHeader(meta)}${renderNsFlow(ns.messages)}` +
+        `${flowHeader(meta)}${renderNsFlow(ns.messages, 'scenario-ns')}` +
         resultLine(ns.accepted, ns.accepted ? 'Bob accepted Alice as authenticated.' : 'Bob rejected the run.') +
         explainerFor(key, ns.accepted);
       inspectors.innerHTML = '';
@@ -360,8 +392,9 @@ export async function renderApp(root: HTMLElement): Promise<void> {
       const keys = await buildNsKeys();
       const lowe = await runLoweAttack(keys);
       const detail = `Alice believed peer = ${lowe.aliceBelievesPeer}. Bob believed peer = ${lowe.bobBelievesPeer}.`;
+      if (superseded()) return;
       flow.innerHTML =
-        `${flowHeader(meta)}${renderNsFlow(lowe.messages)}` +
+        `${flowHeader(meta)}${renderNsFlow(lowe.messages, 'scenario-lowe-attack')}` +
         resultLine(!lowe.bobAccepted, `Bob accepted forged run: ${lowe.bobAccepted}. ${detail}`) +
         explainerFor(key, lowe.bobAccepted, detail);
       inspectors.innerHTML = '';
@@ -378,8 +411,9 @@ export async function renderApp(root: HTMLElement): Promise<void> {
     if (key === 'lowe-fix') {
       const keys = await buildNsKeys();
       const fixed = await runNeedhamSchroederWithLoweFix(keys);
+      if (superseded()) return;
       flow.innerHTML =
-        `${flowHeader(meta)}${renderNsFlow(fixed.messages)}` +
+        `${flowHeader(meta)}${renderNsFlow(fixed.messages, 'scenario-lowe-fix')}` +
         resultLine(fixed.accepted, `Accepted: ${fixed.accepted}. Identity binding in message 2 blocks substitution.`) +
         explainerFor(key, fixed.accepted, fixed.rejectedReason ?? undefined);
       inspectors.innerHTML = '';
@@ -393,7 +427,8 @@ export async function renderApp(root: HTMLElement): Promise<void> {
       return;
     }
 
-    const kerberos = await runKerberosV5(kdc, service, 'alice', 'correct-horse-battery-staple', nowMs);
+    const kerberos = await runKerberosV5(kdc, service, 'alice', 'correct-horse-battery-staple', clientNowMs, nowMs);
+    if (superseded()) return;
     lastKerberos = kerberos;
     flow.innerHTML =
       `${flowHeader(meta)}${renderKerberosFlow(kerberos.records)}` +
@@ -403,6 +438,7 @@ export async function renderApp(root: HTMLElement): Promise<void> {
     const tgtBody: TicketBody = await kdc.decryptTgt(kerberos.tgt);
     const stClear = await decryptAes256CtsHmacSha196(fromHex(service.keyHex), 2, kerberos.serviceTicket.cipher);
     const stBody: TicketBody = JSON.parse(decoder.decode(stClear));
+    if (superseded()) return;
 
     inspectors.classList.remove('hidden');
     inspectors.innerHTML =
@@ -411,11 +447,15 @@ export async function renderApp(root: HTMLElement): Promise<void> {
 
     paintReplayPanel();
 
+    const etypeHtml = await renderETypePanel(serviceKeyBytes);
+    if (superseded()) return;
     etypeWrap.classList.remove('hidden');
-    etypeWrap.innerHTML = `<div class="panel"><span class="kicker">Step 3 \u2014 Crypto detail</span><h2>Encryption type</h2>${await renderETypePanel(serviceKeyBytes)}</div>`;
+    etypeWrap.innerHTML = `<div class="panel"><span class="kicker">Step 3 \u2014 Crypto detail</span><h2>Encryption type</h2>${etypeHtml}</div>`;
 
+    const attacksHtml = await renderAttackPanel(nowMs, nowMs + 4 * 60 * 60 * 1000);
+    if (superseded()) return;
     attacksWrap.classList.remove('hidden');
-    attacksWrap.innerHTML = `<div class="panel"><span class="kicker">Step 4 \u2014 Attack panel</span><h2>What can go wrong</h2><div class="attack-list">${await renderAttackPanel(nowMs, nowMs + 4 * 60 * 60 * 1000)}</div></div>`;
+    attacksWrap.innerHTML = `<div class="panel"><span class="kicker">Step 4 \u2014 Attack panel</span><h2>What can go wrong</h2><div class="attack-list">${attacksHtml}</div></div>`;
   }
 
   byId<HTMLButtonElement>('run').addEventListener('click', () => { void runScenario(); });

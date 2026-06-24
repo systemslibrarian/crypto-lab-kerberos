@@ -57,7 +57,9 @@ export async function encryptAes256CtsHmacSha196(baseKey: Uint8Array, usage: num
 }
 
 export async function decryptAes256CtsHmacSha196(baseKey: Uint8Array, usage: number, ciphertext: Uint8Array): Promise<Uint8Array> {
-  if (ciphertext.length <= HMAC_SIZE + CONFOUNDER_SIZE) {
+  // Minimum valid ciphertext is a confounder-only message: one 16-byte CTS
+  // block plus the 12-byte tag. Anything shorter cannot be a real ciphertext.
+  if (ciphertext.length < HMAC_SIZE + CONFOUNDER_SIZE) {
     throw new Error('ciphertext too short');
   }
   const body = ciphertext.slice(0, ciphertext.length - HMAC_SIZE);

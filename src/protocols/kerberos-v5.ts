@@ -61,13 +61,19 @@ export async function asExchange(
   kdc: KeyDistributionCenter,
   clientName: string,
   password: string,
-  nowMs: number,
+  kdcNowMs: number,
 ): Promise<{ asRep: AsRep; clientTgsKey: Uint8Array; records: FlowRecord[] }> {
-  const nonce = `${nowMs}-${clientName}`;
-  const asRep = await kdc.issueAsRep(clientName, nonce, nowMs, 8 * 60 * 60 * 1000);
+  const nonce = `${kdcNowMs}-${clientName}`;
+  const asRep = await kdc.issueAsRep(clientName, nonce, kdcNowMs, 8 * 60 * 60 * 1000);
   const clientLongTerm = await stringToKeyAes256(password, `${kdc.realm}${clientName}`);
   const clear = await decryptAes256CtsHmacSha196(clientLongTerm, 3, asRep.encPartForClient);
   const part = parse<{ ksession_tgs_hex: string; nonce: string; endtime: number; realm: string; sname: string }>(clear);
+
+  // The client must confirm the KDC echoed the nonce it sent, binding this
+  // reply to this request (RFC 4120 §3.1.5) — defeats AS-REP replay/substitution.
+  if (part.nonce !== nonce) {
+    throw new Error('AS-REP nonce mismatch');
+  }
 
   const records: FlowRecord[] = [
     {
@@ -95,11 +101,14 @@ export async function tgsExchange(
   clientName: string,
   clientTgsKey: Uint8Array,
   serviceName: string,
-  nowMs: number,
+  clientNowMs: number,
+  kdcNowMs: number,
 ): Promise<{ tgsRep: TgsRep; clientSvcKey: Uint8Array; records: FlowRecord[] }> {
-  const auth = { cname: clientName, ctime: nowMs, cusec: randomUsec() };
+  // The authenticator carries the client's (possibly skewed) clock; the KDC
+  // mints the service ticket against its own clock.
+  const auth = { cname: clientName, ctime: clientNowMs, cusec: randomUsec() };
   const authCipher = await encryptAes256CtsHmacSha196(clientTgsKey, 7, jsonBytes(auth));
-  const tgsRep = await kdc.issueTgsRep(asRep.tgt, authCipher.raw, serviceName, nowMs, 4 * 60 * 60 * 1000);
+  const tgsRep = await kdc.issueTgsRep(asRep.tgt, authCipher.raw, serviceName, kdcNowMs, 4 * 60 * 60 * 1000);
 
   const encClient = await decryptAes256CtsHmacSha196(clientTgsKey, 8, tgsRep.encPartForClient);
   const clear = parse<{ ksession_svc_hex: string }>(encClient);
@@ -129,19 +138,22 @@ export async function apExchange(
   serviceTicket: EncTicket,
   clientName: string,
   clientSvcKey: Uint8Array,
-  nowMs: number,
+  clientNowMs: number,
+  serviceNowMs: number,
   skewMs = DEFAULT_SKEW_MS,
 ): Promise<{ accepted: boolean; apRep?: Uint8Array; records: FlowRecord[]; reason?: string }> {
   const ticketClear = await decryptAes256CtsHmacSha196(fromHex(service.keyHex), 2, serviceTicket.cipher);
   const ticket = parse<TicketBody>(ticketClear);
 
-  if (nowMs < ticket.starttime || nowMs > ticket.endtime) {
+  // The service validates the ticket lifetime against its own clock.
+  if (serviceNowMs < ticket.starttime || serviceNowMs > ticket.endtime) {
     return { accepted: false, reason: 'ticket expired', records: [] };
   }
 
+  // The client stamps the authenticator with its own (possibly skewed) clock.
   const auth = {
     cname: clientName,
-    ctime: nowMs,
+    ctime: clientNowMs,
     cusec: randomUsec(),
     cksum: toHex(encoder.encode('ap-req')),
   };
@@ -151,7 +163,7 @@ export async function apExchange(
   const authOnService = parse<{ cname: string; ctime: number; cusec: number }>(authClear);
 
   const replayKey = `${authOnService.cname}:${authOnService.ctime}:${authOnService.cusec}`;
-  service.pruneReplay(skewMs, nowMs);
+  service.pruneReplay(skewMs, serviceNowMs);
   if (service.hasReplay(replayKey)) {
     return {
       accepted: false,
@@ -168,7 +180,7 @@ export async function apExchange(
     };
   }
 
-  if (Math.abs(nowMs - authOnService.ctime) > skewMs) {
+  if (Math.abs(serviceNowMs - authOnService.ctime) > skewMs) {
     return {
       accepted: false,
       reason: 'clock skew exceeded',
@@ -184,7 +196,7 @@ export async function apExchange(
     };
   }
 
-  service.rememberReplay(replayKey, nowMs);
+  service.rememberReplay(replayKey, serviceNowMs);
 
   const apRepPlain = jsonBytes({ ctime: authOnService.ctime, cusec: authOnService.cusec, subkey: 'none', seq: 1 });
   const apRep = await encryptAes256CtsHmacSha196(fromHex(ticket.session_key_hex), 12, apRepPlain);
@@ -211,16 +223,32 @@ export async function apExchange(
   };
 }
 
-export async function runKerberosV5(kdc: KeyDistributionCenter, service: ServicePrincipal, clientName: string, password: string, nowMs: number): Promise<KerberosRun> {
-  const as = await asExchange(kdc, clientName, password, nowMs);
-  const tgs = await tgsExchange(kdc, as.asRep, clientName, as.clientTgsKey, service.name, nowMs);
-  const ap = await apExchange(service, tgs.tgsRep.serviceTicket, clientName, tgs.clientSvcKey, nowMs);
+/**
+ * Run the full AS / TGS / AP exchange.
+ *
+ * `clientNowMs` is the client's wall clock (what its authenticators are stamped
+ * with); `serviceNowMs` is the true KDC/service clock used to mint tickets and
+ * to judge replay and clock skew. They default to equal — no skew — and diverge
+ * only when the UI slides the client's clock, which is what lets the skew
+ * defense actually fire.
+ */
+export async function runKerberosV5(
+  kdc: KeyDistributionCenter,
+  service: ServicePrincipal,
+  clientName: string,
+  password: string,
+  clientNowMs: number,
+  serviceNowMs: number = clientNowMs,
+): Promise<KerberosRun> {
+  const as = await asExchange(kdc, clientName, password, serviceNowMs);
+  const tgs = await tgsExchange(kdc, as.asRep, clientName, as.clientTgsKey, service.name, clientNowMs, serviceNowMs);
+  const ap = await apExchange(service, tgs.tgsRep.serviceTicket, clientName, tgs.clientSvcKey, clientNowMs, serviceNowMs);
 
   // Recover the authenticator we just sent so the UI can replay it on demand.
   const lastAuthRecord = ap.records.find((r) => r.label === 'AP-REQ');
   const lastAuth = lastAuthRecord
     ? (lastAuthRecord.decoded as unknown as { cname: string; ctime: number; cusec: number })
-    : { cname: clientName, ctime: nowMs, cusec: 0 };
+    : { cname: clientName, ctime: clientNowMs, cusec: 0 };
 
   return {
     records: [...as.records, ...tgs.records, ...ap.records],

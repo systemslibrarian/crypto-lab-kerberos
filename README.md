@@ -20,10 +20,31 @@ Users can step through the original Needham-Schroeder flow, watch the Lowe attac
 git clone https://github.com/systemslibrarian/crypto-lab-kerberos
 cd crypto-lab-kerberos
 npm install
-npm run dev
+npm run dev      # live demo at http://localhost:5173
+npm run check    # type-check + full test suite
 ```
 
-## 5. Part of the Crypto-Lab Suite
+## 5. Why You Can Trust the Crypto
+The cryptography is not a simulation, and it is not merely self-consistent — it
+is validated against the **published RFC known-answer vectors**:
+
+- **n-fold** — every vector in RFC 3961 §A.1 (`test/nfold.test.ts`).
+- **string-to-key** (PBKDF2 → n-fold → DR/DK) — the RFC 3962 §B sample
+  vectors, including the high-iteration, block-size-boundary, and non-ASCII
+  (g-clef) cases (`test/string2key.test.ts`).
+- **PBKDF2-HMAC-SHA1** — cross-checked against Node's OpenSSL-backed
+  implementation, an entirely independent code path.
+- **AES-256 block cipher** — the FIPS-197 known-answer vector (`test/cts.test.ts`).
+- **Protocol behaviour** — the Lowe attack succeeds against Needham-Schroeder,
+  the one-line fix blocks it, and the Kerberos clock-skew / replay / expiry
+  defenses each fire (`test/protocols.test.ts`).
+
+The same RFC 3962 §B string-to-key vector also runs live in the browser on every
+page load (the **Self-check** panel), so visitors can watch the in-browser
+derivation reproduce the published key. CI (`.github/workflows/ci.yml`) runs the
+type-checker and the full suite on every push; deploys are gated on it.
+
+## 6. Part of the Crypto-Lab Suite
 > One of 100+ live browser demos at
 > [systemslibrarian.github.io/crypto-lab](https://systemslibrarian.github.io/crypto-lab/)
 > - spanning Atbash (600 BCE) through NIST FIPS 203/204/205 (2024).

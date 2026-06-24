@@ -97,13 +97,12 @@ function nsNarrative(m: NSMessage): string {
   return map[m.label] ?? escape(m.label);
 }
 
-export function renderNsFlow(messages: NSMessage[]): string {
+export function renderNsFlow(messages: NSMessage[], scenarioClass = 'scenario-ns'): string {
   // Always reserve all three lanes so the layout doesn't shift when switching scenarios.
   const parties = NS_PARTIES;
   const involved = new Set<string>();
   for (const m of messages) { involved.add(m.from); involved.add(m.to); }
   const dim = new Set(parties.filter((p) => !involved.has(p)));
-  const scenarioClass = involved.has('Mallory') ? 'scenario-lowe-attack' : 'scenario-ns';
   const steps = messages
     .map((m) => step(parties, scenarioClass, m.step, m.from, m.to, m.label, nsNarrative(m), m.decoded, m.payloadHex))
     .join('');

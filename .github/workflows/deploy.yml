@@ -27,6 +27,12 @@ jobs:
 
       - run: npm ci
 
+      - name: Type-check
+        run: npm run typecheck
+
+      - name: Test (RFC known-answer vectors + protocol behaviour)
+        run: npm test
+
       - run: npm run build
 
       - uses: actions/configure-pages@v5
