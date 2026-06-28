@@ -18,7 +18,7 @@ async function bootstrap(): Promise<void> {
   applyThemeButtonState(root.classList.contains('light'));
 
   const toggle = document.getElementById('theme-toggle');
-  if (!toggle) throw new Error('Missing theme toggle button');
+  if (!toggle) return;
 
   toggle.addEventListener('click', () => {
     const next = root.classList.contains('light') ? 'dark' : 'light';
