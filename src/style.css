@@ -5,6 +5,8 @@
 *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
 
 :root {
+  color-scheme: dark;
+
   --bg-0: #060d13;
   --bg-1: #071016;
   --bg-2: #081016;
@@ -21,7 +23,7 @@
   --text-hi: #f2f8fb;
   --text: #c5d2da;
   --text-dim: #8497a3;
-  --text-mute: #63808e;
+  --text-mute: #6e8a99; /* #63808e was 4.44:1 on the teal-tinted panel; this clears 5:1 */
 
   --border: rgba(99, 128, 146, 0.22);
   --border-strong: rgba(99, 128, 146, 0.42);
@@ -32,6 +34,8 @@
 }
 
 html.light {
+  color-scheme: light;
+
   --bg-0: #e8ecf0;
   --bg-1: #eef1f4;
   --bg-2: #f4f6f8;
@@ -59,6 +63,10 @@ html.light {
 }
 
 html, body { min-height: 100%; }
+
+/* WebKit reports the body->canvas background propagation as transparent, which
+   breaks automated contrast checks — give the root its own paint. */
+html { background-color: var(--bg-0); }
 
 body {
   font-family: var(--mono);
@@ -98,7 +106,7 @@ html.light body::before {
 
 a { color: inherit; }
 
-::selection { background: rgba(53, 214, 187, 0.35); color: var(--text-hi); }
+::selection { background-color: rgba(53, 214, 187, 0.35); color: var(--text-hi); }
 
 /* ── Skip navigation ─────────────────────────────────────── */
 .skip-link {
@@ -118,7 +126,7 @@ a { color: inherit; }
   overflow: visible;
   z-index: 9999;
   padding: 10px 16px;
-  background: var(--bg-0);
+  background-color: var(--bg-0);
   color: var(--teal);
   border: 2px solid var(--teal);
   font-family: var(--mono);
@@ -136,11 +144,11 @@ a { color: inherit; }
   justify-content: space-between;
   gap: 14px;
   padding: 12px 20px;
-  background: #0e1f1e;
+  background-color: #0e1f1e;
   overflow: hidden;
 }
 
-html.light .cl-header { background: #0e1f1e; }
+html.light .cl-header { background-color: #0e1f1e; }
 
 .cl-header::before {
   content: '';
@@ -163,7 +171,7 @@ html.light .cl-header { background: #0e1f1e; }
    bleeds onto the shared header and drops its subtitle below AA contrast. */
 .cl-header .cl-badge {
   width: 38px; height: 38px;
-  background: #162b2a;
+  background-color: #162b2a;
   border: 1px solid #2a4a44;
   border-radius: 6px;
   display: flex; align-items: center; justify-content: center;
@@ -203,7 +211,7 @@ html.light .cl-header { background: #0e1f1e; }
 .cl-theme-toggle {
   font-family: var(--mono);
   color: #4dcfb0;
-  background: #162b2a;
+  background-color: #162b2a;
   border: 1px solid #2a4a44;
   border-radius: 6px;
   cursor: pointer;
@@ -220,7 +228,7 @@ html.light .cl-header { background: #0e1f1e; }
 
 .cl-nav-btn:hover,
 .cl-theme-toggle:hover {
-  background: #1e3c3a;
+  background-color: #1e3c3a;
   border-color: #4dcfb0;
 }
 
@@ -291,7 +299,7 @@ html.light .hero {
   font-size: 11px;
 }
 .eyebrow::before {
-  content: ''; width: 34px; height: 1px; background: currentColor;
+  content: ''; width: 34px; height: 1px; background-color: currentColor;
 }
 
 .hero h1 {
@@ -326,7 +334,7 @@ html.light .hero {
   text-transform: uppercase;
   letter-spacing: 0.09em;
   font-size: 10px;
-  background: var(--surface);
+  background-color: var(--surface);
 }
 
 /* ── Section kicker (small label) ───────────────────────── */
@@ -341,7 +349,7 @@ html.light .hero {
   margin-bottom: 12px;
 }
 .kicker::before {
-  content: ''; width: 18px; height: 1px; background: currentColor;
+  content: ''; width: 18px; height: 1px; background-color: currentColor;
 }
 
 /* ── Panels (cards) ──────────────────────────────────────── */
@@ -409,13 +417,23 @@ html.light .panel {
 .controls button {
   font-family: var(--mono);
   color: var(--text-hi);
-  background: var(--surface);
+  background-color: var(--surface);
   border: 1px solid var(--border-strong);
   border-radius: 0;
   padding: 11px 14px;
   font-size: 13px;
   outline: none;
   transition: border-color 0.18s ease, color 0.18s ease, background 0.18s ease;
+}
+
+/* Custom-styled select keeps a consistent (non-native) chevron in both themes. */
+.controls select {
+  appearance: none;
+  -webkit-appearance: none;
+  padding-right: 1.8rem;
+  background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='12' height='8' viewBox='0 0 12 8'%3E%3Cpath fill='none' stroke='%238b949e' stroke-width='2' d='M1 1l5 5 5-5'/%3E%3C/svg%3E");
+  background-repeat: no-repeat;
+  background-position: right 0.6rem center;
 }
 
 .controls select:hover,
@@ -446,7 +464,7 @@ summary:focus-visible { outline: 2px solid var(--teal); outline-offset: 2px; }
 }
 
 .controls button {
-  background: rgba(53, 214, 187, 0.10);
+  background-color: rgba(53, 214, 187, 0.10);
   color: var(--teal);
   text-transform: uppercase;
   letter-spacing: 0.12em;
@@ -454,7 +472,7 @@ summary:focus-visible { outline: 2px solid var(--teal); outline-offset: 2px; }
   cursor: pointer;
 }
 .controls button:hover {
-  background: rgba(53, 214, 187, 0.20);
+  background-color: rgba(53, 214, 187, 0.20);
   color: var(--text-hi);
   border-color: var(--teal);
 }
@@ -471,10 +489,10 @@ pre, code {
   font-family: var(--mono);
   color: var(--text);
 }
-code { background: var(--surface); padding: 1px 6px; border: 1px solid var(--border); }
+code { background-color: var(--surface); padding: 1px 6px; border: 1px solid var(--border); }
 
 pre {
-  background: rgba(4, 10, 14, 0.78);
+  background-color: rgba(4, 10, 14, 0.78);
   color: var(--text);
   border: 1px solid var(--border);
   padding: 12px 14px;
@@ -484,7 +502,7 @@ pre {
   white-space: pre-wrap;
   word-break: break-all;
 }
-html.light pre { background: rgba(245, 248, 251, 0.95); }
+html.light pre { background-color: rgba(245, 248, 251, 0.95); }
 
 .msg-card {
   --accent: var(--teal);
@@ -492,7 +510,7 @@ html.light pre { background: rgba(245, 248, 251, 0.95); }
   padding: 16px 18px;
   margin-top: 12px;
   border: 1px solid var(--border);
-  background: var(--panel);
+  background-color: var(--panel);
   overflow: hidden;
   animation: reveal 280ms ease both;
 }
@@ -566,7 +584,7 @@ html.light pre { background: rgba(245, 248, 251, 0.95); }
 .ticket-line code {
   display: block;
   border: 1px solid var(--border);
-  background: var(--surface);
+  background-color: var(--surface);
   padding: 6px 10px;
   overflow-wrap: anywhere;
   font-size: 11.5px;
@@ -581,14 +599,14 @@ html.light pre { background: rgba(245, 248, 251, 0.95); }
   gap: 14px;
   padding: 14px 16px;
   border: 1px solid var(--border);
-  background: var(--surface);
+  background-color: var(--surface);
   position: relative;
 }
 .attack-item::before {
   content: '';
   width: 6px; height: 6px;
   margin-top: 8px;
-  background: var(--teal);
+  background-color: var(--teal);
   border-radius: 0;
   box-shadow: 0 0 0 3px rgba(53, 214, 187, 0.15);
 }
@@ -713,7 +731,7 @@ html.light .footer-quote {
   top: 18px;
   padding: 18px 18px 18px 22px;
   border: 1px solid var(--border);
-  background: var(--panel);
+  background-color: var(--panel);
   box-shadow: var(--shadow);
   backdrop-filter: blur(10px);
 }
@@ -728,7 +746,7 @@ html.light .footer-quote {
   position: absolute;
   left: 5px; top: 6px; bottom: 6px;
   width: 1px;
-  background: var(--border-strong);
+  background-color: var(--border-strong);
 }
 .timeline li {
   position: relative;
@@ -756,11 +774,11 @@ html.light .footer-quote {
   left: 0; top: 14px;
   width: 11px; height: 11px;
   border: 1px solid var(--border-strong);
-  background: var(--bg-1);
+  background-color: var(--bg-1);
 }
 .timeline li.active { color: var(--text-hi); }
 .timeline li.active::before {
-  background: var(--accent, var(--teal));
+  background-color: var(--accent, var(--teal));
   border-color: var(--accent, var(--teal));
   box-shadow: 0 0 0 4px color-mix(in srgb, var(--accent, var(--teal)) 18%, transparent);
 }
@@ -799,7 +817,7 @@ html.light .footer-quote {
   text-align: center;
   padding: 8px 10px;
   border: 1px solid var(--border-strong);
-  background: var(--surface);
+  background-color: var(--surface);
   font-family: var(--mono);
   font-size: 11px;
   letter-spacing: 0.14em;
@@ -836,7 +854,7 @@ html.light .footer-quote {
   font-size: 10px;
   letter-spacing: 0.1em;
   color: var(--accent, var(--teal));
-  background: var(--bg-1);
+  background-color: var(--bg-1);
   border: 1px solid color-mix(in srgb, var(--accent, var(--teal)) 50%, transparent);
   padding: 2px 6px;
   flex-shrink: 0;
@@ -864,7 +882,7 @@ html.light .footer-quote {
 .swim-payload {
   grid-column: 1 / -1;
   border: 1px solid var(--border);
-  background: var(--surface);
+  background-color: var(--surface);
   padding: 12px 14px;
   display: grid;
   gap: 10px;
@@ -885,7 +903,7 @@ html.light .footer-quote {
   font-size: 11px;
   padding: 3px 8px;
   border: 1px solid var(--border);
-  background: var(--bg-1);
+  background-color: var(--bg-1);
   color: var(--text);
 }
 .chip b {
@@ -935,13 +953,13 @@ html.light .footer-quote {
   font-family: var(--mono);
   font-size: 12px;
   border: 1px solid var(--border);
-  background: var(--bg-1);
+  background-color: var(--bg-1);
   overflow: hidden;
 }
 .diff .row { padding: 6px 12px; display: flex; gap: 10px; align-items: baseline; }
-.diff .row.del { background: rgba(255, 107, 127, 0.08); color: var(--rose); }
-.diff .row.add { background: rgba(53, 214, 187, 0.08); color: var(--teal); }
-.diff .row .sigil { width: 14px; flex-shrink: 0; opacity: 0.7; }
+.diff .row.del { background-color: rgba(255, 107, 127, 0.08); color: var(--rose); }
+.diff .row.add { background-color: rgba(53, 214, 187, 0.08); color: var(--teal); }
+.diff .row .sigil { width: 14px; flex-shrink: 0; }
 .diff .row .text { white-space: pre-wrap; word-break: break-all; }
 
 /* ── Klist-style inspector lines ────────────────────────── */
@@ -960,7 +978,7 @@ html.light .footer-quote {
   text-transform: uppercase;
   padding: 2px 6px;
   border: 1px solid var(--border);
-  background: var(--bg-1);
+  background-color: var(--bg-1);
   color: var(--teal);
 }
 
@@ -1016,7 +1034,9 @@ html.light .footer-quote {
 
 /* ── Persistent-lane party dim state ────────────────────── */
 .swim-header .party.dim {
-  opacity: 0.35;
+  /* Dim with a muted (but still AA-passing) colour rather than opacity, which
+     dropped the label to ~3:1 dark / ~2.3:1 light. */
+  color: var(--text-mute);
   border-style: dashed;
 }
 
@@ -1062,12 +1082,12 @@ html.light .footer-quote {
   text-transform: uppercase;
   padding: 9px 14px;
   border: 1px solid var(--border-strong);
-  background: var(--surface);
+  background-color: var(--surface);
   color: var(--text-hi);
   cursor: pointer;
   transition: border-color 0.15s, color 0.15s, background 0.15s;
 }
-.action-row button:hover { border-color: var(--rose); color: var(--rose); background: color-mix(in srgb, var(--rose) 8%, transparent); }
+.action-row button:hover { border-color: var(--rose); color: var(--rose); background-color: color-mix(in srgb, var(--rose) 8%, transparent); }
 .action-row .hint {
   font-size: 11.5px;
   color: var(--text-dim);
@@ -1092,7 +1112,7 @@ html.light .footer-quote {
 }
 .selfcheck .check {
   border: 1px solid var(--border);
-  background: var(--surface);
+  background-color: var(--surface);
   padding: 10px 12px;
   display: flex;
   align-items: center;
@@ -1114,13 +1134,13 @@ html.light .footer-quote {
 
 /* ── Light-theme overrides for new components ───────────── */
 html.light .swim-arrow .arrow-head { filter: none; }
-html.light .selfcheck .check, html.light .action-row button { background: rgba(255, 255, 255, 0.85); }
-html.light .swim-payload { background: rgba(255, 255, 255, 0.85); }
-html.light .swim-header .party { background: rgba(255, 255, 255, 0.9); }
-html.light .timeline li::before { background: rgba(255, 255, 255, 0.95); }
-html.light .diff { background: rgba(255, 255, 255, 0.85); }
-html.light .chip, html.light .klist .flag, html.light .timeline { background: rgba(255, 255, 255, 0.85); }
-html.light pre, html.light .swim-payload pre { background: rgba(245, 248, 251, 0.95); }
+html.light .selfcheck .check, html.light .action-row button { background-color: rgba(255, 255, 255, 0.85); }
+html.light .swim-payload { background-color: rgba(255, 255, 255, 0.85); }
+html.light .swim-header .party { background-color: rgba(255, 255, 255, 0.9); }
+html.light .timeline li::before { background-color: rgba(255, 255, 255, 0.95); }
+html.light .diff { background-color: rgba(255, 255, 255, 0.85); }
+html.light .chip, html.light .klist .flag, html.light .timeline { background-color: rgba(255, 255, 255, 0.85); }
+html.light pre, html.light .swim-payload pre { background-color: rgba(245, 248, 251, 0.95); }
 html.light .explainer { background: linear-gradient(180deg, color-mix(in srgb, var(--accent, var(--teal)) 10%, white), white); }
 
 
