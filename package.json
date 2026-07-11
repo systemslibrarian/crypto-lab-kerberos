@@ -11,9 +11,12 @@
     "test": "vitest run",
     "test:watch": "vitest",
     "check": "npm run typecheck && npm run test",
+    "test:a11y": "playwright test",
     "deploy": "npm run build && gh-pages -d dist"
   },
   "devDependencies": {
+    "@axe-core/playwright": "^4.12.1",
+    "@playwright/test": "^1.61.1",
     "gh-pages": "^6.3.0",
     "typescript": "~6.0.2",
     "vite": "^8.0.9",

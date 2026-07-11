@@ -15,15 +15,15 @@ async function bootstrap(): Promise<void> {
   await renderApp(app);
 
   const root = document.documentElement;
-  applyThemeButtonState(root.classList.contains('light'));
+  const isLight = (): boolean => root.getAttribute('data-theme') === 'light';
+  applyThemeButtonState(isLight());
 
   const toggle = document.getElementById('theme-toggle');
   if (!toggle) return;
 
   toggle.addEventListener('click', () => {
-    const next = root.classList.contains('light') ? 'dark' : 'light';
-    if (next === 'light') root.classList.add('light');
-    else root.classList.remove('light');
+    const next = isLight() ? 'dark' : 'light';
+    root.setAttribute('data-theme', next);
     localStorage.setItem('theme', next);
     applyThemeButtonState(next === 'light');
   });
