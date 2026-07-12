@@ -256,86 +256,20 @@ html[data-theme="light"] .cl-header { background-color: #0e1f1e; }
   gap: 22px;
 }
 
-/* ── Hero ────────────────────────────────────────────────── */
-.hero {
-  position: relative;
-  padding: 28px 36px;
-  border: 1px solid var(--border);
-  background:
-    linear-gradient(145deg, rgba(53, 214, 187, 0.07), transparent 30%),
-    linear-gradient(180deg, rgba(8, 17, 24, 0.92), rgba(8, 17, 24, 0.82));
-  box-shadow: var(--shadow);
-  backdrop-filter: blur(12px);
-}
-html[data-theme="light"] .hero {
-  background:
-    linear-gradient(145deg, rgba(26, 171, 148, 0.06), transparent 30%),
-    rgba(255, 255, 255, 0.88);
-}
-
-.hero-body {
-  display: flex;
-  align-items: center;
-  gap: 40px;
-}
-
-.hero-left {
-  flex: 0 0 auto;
-}
-
-.hero-right {
-  flex: 1 1 0;
-  min-width: 0;
-  border-left: 1px solid var(--border);
-  padding-left: 40px;
-}
-
-.eyebrow {
-  display: inline-flex; align-items: center; gap: 10px;
-  margin-bottom: 14px;
-  color: var(--amber);
-  text-transform: uppercase;
-  letter-spacing: 0.16em;
-  font-size: 11px;
-}
-.eyebrow::before {
-  content: ''; width: 34px; height: 1px; background-color: currentColor;
-}
-
-.hero h1 {
-  max-width: 14ch;
-  font-family: var(--serif);
-  font-size: clamp(2.2rem, 4vw, 3.6rem);
-  font-weight: 500;
-  line-height: 0.98;
-  color: var(--text-hi);
-  letter-spacing: -0.03em;
-  text-wrap: balance;
-}
-.hero h1 span { color: var(--teal); font-style: italic; }
-
-.hero p {
-  color: var(--text);
-  font-size: 13.5px;
-  margin-top: 0;
-}
-
-.hero-stats {
-  margin-top: 18px;
-  display: flex;
-  flex-wrap: wrap;
-  gap: 8px;
-}
-
-.hero-stat {
-  padding: 5px 10px;
-  border: 1px solid var(--border-strong);
-  color: var(--text);
-  text-transform: uppercase;
-  letter-spacing: 0.09em;
-  font-size: 10px;
-  background-color: var(--surface);
-}
+/* BEGIN cl-hero standard — managed, keep in sync across fleet */
+/* Accent/text mapped to this lab's theme vars (--teal accent, --text-dim,
+   --border) so it clears axe contrast in both themes. Title uses the serif
+   display face and --text-hi to match the lab's visual system. */
+.cl-hero{display:flex;align-items:flex-start;justify-content:space-between;gap:clamp(1rem,4vw,3rem);flex-wrap:wrap;margin:clamp(1rem,3vw,2rem) 0 1.5rem;}
+.cl-hero-main{flex:1 1 22rem;min-width:min(100%,20rem);}
+.cl-hero-title{margin:0;font-family:var(--serif);color:var(--text-hi);font-size:clamp(1.6rem,3.8vw,2.7rem);font-weight:500;line-height:1.1;letter-spacing:.01em;}
+.cl-hero-sub{margin:.4rem 0 0;color:var(--text);font-size:clamp(.9rem,1.6vw,1.05rem);letter-spacing:.01em;opacity:.85;}
+.cl-hero-desc{margin:.55rem 0 0;font-size:1rem;line-height:1.5;color:var(--text-dim);max-width:60ch;}
+.cl-hero-why{flex:0 1 min(40%,26rem);min-width:min(100%,15rem);border:1px solid var(--border);border-radius:10px;padding:.85rem 1.05rem;background:color-mix(in oklab,var(--teal) 6%,transparent);}
+.cl-hero-why-label{display:block;color:var(--teal);font-size:.68rem;font-weight:700;letter-spacing:.14em;}
+.cl-hero-why-text{margin:.35rem 0 0;color:var(--text);font-size:.95rem;line-height:1.5;}
+@media (max-width:640px){.cl-hero{flex-direction:column;}.cl-hero-why{flex-basis:auto;width:100%;}}
+/* END cl-hero standard */
 
 /* ── Section kicker (small label) ───────────────────────── */
 .kicker {
@@ -661,7 +595,7 @@ html[data-theme="light"] .footer-quote {
   to { transform: translateY(0); opacity: 1; }
 }
 
-.hero, .panel, .footer-quote { animation: fadeUp 0.55s ease both; }
+.cl-hero, .panel, .footer-quote { animation: fadeUp 0.55s ease both; }
 
 /* ── Responsive ─────────────────────────────────────────── */
 @media (max-width: 880px) {
@@ -672,12 +606,6 @@ html[data-theme="light"] .footer-quote {
 
   #app, .wrap { width: min(100% - 24px, 1280px); padding-left: 0; padding-right: 0; }
   #app { padding-top: 22px; gap: 16px; }
-
-  .hero { padding: 22px 18px; }
-  .hero-body { flex-direction: column; gap: 20px; }
-  .hero-right { border-left: none; border-top: 1px solid var(--border); padding-left: 0; padding-top: 18px; }
-  .hero h1 { font-size: clamp(2rem, 9vw, 3rem); }
-  .hero p { font-size: 13px; }
 
   .panel { padding: 20px 18px; }
 

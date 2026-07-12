@@ -128,24 +128,17 @@ function renderTimeline(active: ScenarioKey): string {
 
 export async function renderApp(root: HTMLElement): Promise<void> {
   root.innerHTML = `
-  <section class="hero" aria-labelledby="hero-title">
-    <div class="hero-body">
-      <div class="hero-left">
-        <span class="eyebrow">Authentication Protocol Lab</span>
-        <h1 id="hero-title">Forty-seven years of <span>authentication</span>.</h1>
-      </div>
-      <div class="hero-right">
-        <p>Walk the arc from Needham-Schroeder (1978) through Gavin Lowe\u2019s man-in-the-middle (1995) to Kerberos v5 (RFC 4120), with real AES-256-CTS-HMAC-SHA1-96 encryption running in your browser via WebCrypto. Watch tickets get issued, replays get caught, and clock skew kill an exchange.</p>
-        <div class="hero-stats">
-          <span class="hero-stat">RFC 3961 / 3962</span>
-          <span class="hero-stat">RFC 4120</span>
-          <span class="hero-stat">AES-256-CTS-HMAC-SHA1-96</span>
-          <span class="hero-stat">PBKDF2-HMAC-SHA1 \u00d7 4096</span>
-          <span class="hero-stat">@noble/hashes</span>
-        </div>
-      </div>
+  <header class="cl-hero">
+    <div class="cl-hero-main">
+      <h1 class="cl-hero-title">Kerberos</h1>
+      <p class="cl-hero-sub">Needham-Schroeder \u2192 Lowe fix \u2192 Kerberos v5 \u00b7 RFC 4120</p>
+      <p class="cl-hero-desc">Step through the arc from Needham-Schroeder (1978) and Lowe\u2019s man-in-the-middle fix (1995) to Kerberos v5, watching a KDC issue AES-256 tickets while replays and clock skew get rejected in real WebCrypto.</p>
     </div>
-  </section>
+    <aside class="cl-hero-why" aria-label="Why it matters">
+      <span class="cl-hero-why-label">WHY IT MATTERS</span>
+      <p class="cl-hero-why-text">Every domain login and single sign-on trusts a third party you never see. A subtle protocol flaw lets one attacker impersonate anyone \u2014 which is why Lowe\u2019s fix and Kerberos\u2019 replay and clock-skew defenses exist.</p>
+    </aside>
+  </header>
 
   <div class="layout">
     <div id="timeline-mount"></div>
