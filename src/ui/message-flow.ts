@@ -47,6 +47,38 @@ function header(parties: readonly string[], dimSet: ReadonlySet<string> = new Se
     .join('')}</div>`;
 }
 
+// The Lowe attack turns on Mallory relaying the SAME inner secret while swapping
+// the OUTER public-key envelope. When we detect one of Mallory's two re-seal
+// steps we render a small capsule that shows the outer seal changing (from _pkM
+// to _pkB, or _pkA→relayed) while the sealed core stays untouched. This is an
+// honest visual: it re-states exactly what the crypto in lowe-attack.ts does —
+// the ciphertext is genuinely re-encrypted under a new public key, the inner
+// nonce is never decrypted by Mallory.
+function resealCapsule(reseal: ResealSpec): string {
+  const coreDecrypted = reseal.canOpen ? '' : ' locked';
+  return `<div class="reseal" role="img" aria-label="${escape(reseal.aria)}">
+    <div class="reseal-track">
+      <span class="reseal-seal from">${escape(reseal.fromSeal)}</span>
+      <span class="reseal-capsule">
+        <span class="reseal-lock${coreDecrypted}" aria-hidden="true">${reseal.canOpen ? '🔓' : '🔒'}</span>
+        <code class="reseal-core">${escape(reseal.core)}</code>
+      </span>
+      <span class="reseal-arrow" aria-hidden="true">→</span>
+      <span class="reseal-seal to">${escape(reseal.toSeal)}</span>
+    </div>
+    <p class="reseal-caption">${reseal.caption}</p>
+  </div>`;
+}
+
+interface ResealSpec {
+  fromSeal: string;
+  toSeal: string;
+  core: string;
+  canOpen: boolean;
+  caption: string;
+  aria: string;
+}
+
 function step(
   parties: readonly string[],
   scenarioClass: string,
@@ -57,11 +89,12 @@ function step(
   narrative: string,
   decoded: Record<string, unknown>,
   payloadHex: string,
+  reseal?: ResealSpec,
 ): string {
   const { style, reverse } = laneStyle(parties, from, to);
   const lanes = parties.map(() => '<div class="lane"></div>').join('');
   return `
-    <div class="swim-step ${scenarioClass}" style="--cols: ${parties.length}; --i: ${num};">
+    <div class="swim-step ${scenarioClass}${reseal ? ' has-reseal' : ''}" style="--cols: ${parties.length}; --i: ${num};">
       ${lanes}
       <div class="swim-arrow ${reverse ? 'reverse' : ''}" style="${style}">
         <span class="step-num">${num}</span>
@@ -69,6 +102,7 @@ function step(
       </div>
       <div class="swim-payload">
         <div class="narrative">${narrative}</div>
+        ${reseal ? resealCapsule(reseal) : ''}
         <div class="chips">${chips(decoded)}</div>
         <details><summary>Raw bytes · decoded JSON</summary>
           <pre>${escape(trimHex(payloadHex, 240))}</pre>
@@ -97,14 +131,47 @@ function nsNarrative(m: NSMessage): string {
   return map[m.label] ?? escape(m.label);
 }
 
+// Only Mallory's relay steps in the Lowe attack carry a re-seal capsule. Message 2
+// (M -> B: {Na, A}) is the canonical one the reviewer asked to animate: Mallory
+// strips the outer _pkM envelope (which she alone can open) and re-seals the SAME
+// {Na, A} under Bob's key. Message 6 relays Nb the same way.
+function resealFor(m: NSMessage): ResealSpec | undefined {
+  if (m.label === 'M -> B: {Na, A}_pkB') {
+    return {
+      fromSeal: '_pkM', toSeal: '_pkB',
+      core: '{ Na, A }', canOpen: true,
+      caption: '<b>Mallory opens the outer <code>_pkM</code> seal</b> (only she can), then re-seals the <em>identical</em> <code>{Na,&nbsp;A}</code> under Bob’s key. The inner nonce is copied, never changed — Bob decrypts it and believes Alice is calling.',
+      aria: 'Payload {Na, A} re-sealed: outer envelope changes from public key of Mallory to public key of Bob while the inner contents stay the same.',
+    };
+  }
+  if (m.label === 'M -> A: {Na, Nb}_pkA') {
+    return {
+      fromSeal: '_pkA', toSeal: '_pkA',
+      core: '{ Na, Nb }', canOpen: false,
+      caption: '<b>Mallory cannot open this</b> — it is sealed under <em>Alice’s</em> key. She relays it byte-for-byte. Relaying a sealed capsule she can’t read is enough; she never needs the nonce inside.',
+      aria: 'Payload {Na, Nb} relayed unchanged: still sealed under Alice public key, Mallory cannot open it.',
+    };
+  }
+  if (m.label === 'M -> B: {Nb}_pkB') {
+    return {
+      fromSeal: '_pkM', toSeal: '_pkB',
+      core: '{ Nb }', canOpen: true,
+      caption: '<b>Final re-seal.</b> Mallory opens Alice’s reply <code>{Nb}_pkM</code>, re-seals the same <code>Nb</code> under Bob’s key. Bob sees his own nonce returned and authenticates the run — as Alice.',
+      aria: 'Payload {Nb} re-sealed: outer envelope changes from public key of Mallory to public key of Bob while the inner nonce stays the same.',
+    };
+  }
+  return undefined;
+}
+
 export function renderNsFlow(messages: NSMessage[], scenarioClass = 'scenario-ns'): string {
   // Always reserve all three lanes so the layout doesn't shift when switching scenarios.
   const parties = NS_PARTIES;
   const involved = new Set<string>();
   for (const m of messages) { involved.add(m.from); involved.add(m.to); }
   const dim = new Set(parties.filter((p) => !involved.has(p)));
+  const isAttack = scenarioClass === 'scenario-lowe-attack';
   const steps = messages
-    .map((m) => step(parties, scenarioClass, m.step, m.from, m.to, m.label, nsNarrative(m), m.decoded, m.payloadHex))
+    .map((m) => step(parties, scenarioClass, m.step, m.from, m.to, m.label, nsNarrative(m), m.decoded, m.payloadHex, isAttack ? resealFor(m) : undefined))
     .join('');
   return `<div class="swim">${header(parties, dim)}${steps}</div>`;
 }

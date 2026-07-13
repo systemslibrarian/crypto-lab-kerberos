@@ -418,6 +418,50 @@ summary:focus-visible { outline: 2px solid var(--teal); outline-offset: 2px; }
   letter-spacing: 0.06em;
 }
 
+/* ── Self-teaching clock skew scale + live badge ────────── */
+.skew-scale {
+  position: relative;
+  height: 16px;
+  margin-top: 2px;
+}
+.skew-mark {
+  position: absolute;
+  top: 0;
+  transform: translateX(-50%);
+  font-family: var(--mono);
+  font-size: 9.5px;
+  letter-spacing: 0.06em;
+  color: var(--text-mute);
+  padding-left: 12px; /* align with range input's 12px inner padding */
+}
+/* subtle shaded band between the ±5 marks = the tolerance zone */
+.skew-band {
+  position: absolute;
+  top: 11px;
+  left: 33.33%;
+  width: 33.33%;
+  height: 2px;
+  background-color: color-mix(in srgb, var(--teal) 55%, transparent);
+}
+.skew-badge {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  margin-top: 4px;
+  font-family: var(--mono);
+  font-size: 10.5px;
+  letter-spacing: 0.04em;
+  padding: 3px 9px;
+  border: 1px solid var(--border-strong);
+  border-radius: 2px;
+  width: fit-content;
+}
+.skew-badge-glyph { font-weight: 700; }
+.skew-badge.ok  { color: var(--teal); border-color: rgba(53, 214, 187, 0.5); }
+.skew-badge.bad { color: var(--rose); border-color: rgba(255, 107, 127, 0.5); }
+html[data-theme="light"] .skew-badge.ok  { border-color: rgba(12, 116, 96, 0.5); }
+html[data-theme="light"] .skew-badge.bad { border-color: rgba(192, 31, 55, 0.5); }
+
 /* ── Code & messages ─────────────────────────────────────── */
 pre, code {
   font-family: var(--mono);
@@ -524,34 +568,107 @@ html[data-theme="light"] pre { background-color: rgba(245, 248, 251, 0.95); }
   font-size: 11.5px;
 }
 
-/* ── Attack panel ───────────────────────────────────────── */
-.attack-list { display: grid; gap: 12px; margin-top: 6px; }
-
-.attack-item {
-  display: grid;
-  grid-template-columns: 14px 1fr;
-  gap: 14px;
-  padding: 14px 16px;
-  border: 1px solid var(--border);
-  background-color: var(--surface);
-  position: relative;
-}
-.attack-item::before {
-  content: '';
-  width: 6px; height: 6px;
-  margin-top: 8px;
-  background-color: var(--teal);
-  border-radius: 0;
-  box-shadow: 0 0 0 3px rgba(53, 214, 187, 0.15);
-}
-.attack-item h4 {
-  margin: 0 0 4px;
-  color: var(--text-hi);
+/* ── Attack panel — grouped defense cards ───────────────── */
+.defense-groups { display: grid; gap: 20px; margin-top: 10px; }
+.defense-group { display: grid; gap: 8px; }
+.defense-group-title {
+  font-family: var(--mono) !important;
+  font-size: 12px !important;
+  font-weight: 700 !important;
+  letter-spacing: 0.12em;
   text-transform: uppercase;
-  letter-spacing: 0.1em;
-  font-size: 11px;
+  color: var(--text-hi) !important;
+  margin: 0 !important;
 }
-.attack-item p { color: var(--text); font-size: 12.5px; line-height: 1.65; margin: 0; }
+.defense-group-note {
+  font-size: 11.5px !important;
+  color: var(--text-dim) !important;
+  margin: 0 0 4px !important;
+  line-height: 1.5 !important;
+}
+
+.defense-card {
+  border: 1px solid var(--border);
+  border-left-width: 3px;
+  background-color: var(--surface);
+}
+html[data-theme="light"] .defense-card { background-color: rgba(255, 255, 255, 0.85); }
+.defense-card.ok  { border-left-color: rgba(53, 214, 187, 0.6); }
+.defense-card.bad { border-left-color: rgba(255, 184, 77, 0.6); }
+html[data-theme="light"] .defense-card.ok  { border-left-color: rgba(12, 116, 96, 0.6); }
+html[data-theme="light"] .defense-card.bad { border-left-color: rgba(138, 99, 0, 0.6); }
+
+.defense-card > summary {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  padding: 11px 14px;
+  cursor: pointer;
+  list-style: none;
+  user-select: none;
+}
+.defense-card > summary::-webkit-details-marker { display: none; }
+.defense-glyph { font-weight: 700; font-size: 13px; line-height: 1; flex-shrink: 0; }
+.defense-card.ok  .defense-glyph { color: var(--teal); }
+.defense-card.bad .defense-glyph { color: var(--amber); }
+.defense-label {
+  font-family: var(--mono);
+  font-size: 12px;
+  color: var(--text-hi);
+  letter-spacing: 0.04em;
+}
+.defense-tag {
+  margin-left: auto;
+  font-family: var(--mono);
+  font-size: 9.5px;
+  letter-spacing: 0.1em;
+  text-transform: uppercase;
+  padding: 2px 7px;
+  border: 1px solid var(--border-strong);
+  border-radius: 2px;
+  white-space: nowrap;
+}
+.defense-card.ok  .defense-tag { color: var(--teal); border-color: rgba(53, 214, 187, 0.45); }
+.defense-card.bad .defense-tag { color: var(--amber); border-color: rgba(255, 184, 77, 0.45); }
+.defense-card > summary::after {
+  content: '▸';
+  color: var(--text-dim);
+  font-size: 11px;
+  transition: transform 0.15s ease;
+}
+.defense-card[open] > summary::after { transform: rotate(90deg); }
+
+.defense-body {
+  padding: 2px 14px 14px;
+  display: grid;
+  gap: 8px;
+  border-top: 1px solid var(--border);
+}
+.defense-line, .defense-detail { margin: 0; font-size: 12px; line-height: 1.6; color: var(--text); }
+.defense-line b { color: var(--text-hi); font-weight: 600; }
+.defense-line em { color: var(--text-hi); font-style: normal; }
+.defense-key {
+  display: block;
+  font-family: var(--mono);
+  font-size: 9.5px;
+  letter-spacing: 0.12em;
+  text-transform: uppercase;
+  color: var(--text-mute);
+  margin-bottom: 2px;
+}
+.defense-line.attack .defense-key { color: var(--rose); }
+.defense-line.stops .defense-key { color: var(--teal); }
+.defense-detail code { font-size: 11px; }
+
+/* Jargon tooltip: dotted underline is the visible affordance; native title gives
+   the definition (and screen-reader support). Not colour-alone. */
+.jargon {
+  text-decoration: underline dotted;
+  text-underline-offset: 2px;
+  cursor: help;
+  color: inherit;
+}
+.jargon:hover, .jargon:focus { color: var(--teal); }
 
 /* ── Footer ──────────────────────────────────────────────── */
 .footer { padding: 24px 0 48px; position: relative; z-index: 1; }
@@ -853,6 +970,147 @@ html[data-theme="light"] .footer-quote {
 }
 .swim-payload details[open] summary { color: var(--accent, var(--teal)); }
 .swim-payload pre { margin-top: 8px; font-size: 11px; }
+
+/* ── Kerberos crypto-changed signpost ───────────────────── */
+.signpost {
+  display: flex;
+  gap: 12px;
+  align-items: flex-start;
+  margin-top: 16px;
+  padding: 14px 16px;
+  border: 1px solid rgba(255, 184, 77, 0.45);
+  border-left-width: 3px;
+  background: color-mix(in srgb, var(--amber) 9%, transparent);
+}
+.signpost-icon {
+  font-size: 18px;
+  line-height: 1.3;
+  color: var(--amber);
+  flex-shrink: 0;
+}
+.signpost div { font-size: 12.5px; line-height: 1.65; color: var(--text); }
+.signpost b { color: var(--text-hi); font-weight: 600; }
+.signpost em { color: var(--amber); font-style: normal; }
+
+/* ── Kerberos three-exchange orientation card ───────────── */
+.orient {
+  margin-top: 16px;
+  padding: 16px 18px;
+  border: 1px solid var(--border);
+  background: linear-gradient(180deg, color-mix(in srgb, var(--amber) 6%, transparent), transparent);
+}
+.orient .kicker { color: var(--amber); margin-bottom: 14px; }
+.orient .kicker::before { background-color: currentColor; }
+.orient-grid {
+  display: grid;
+  grid-template-columns: repeat(3, 1fr);
+  gap: 12px;
+}
+@media (max-width: 720px) { .orient-grid { grid-template-columns: 1fr; } }
+.orient-card {
+  border: 1px solid var(--border);
+  background-color: var(--surface);
+  padding: 12px 14px;
+  display: grid;
+  gap: 6px;
+  align-content: start;
+  position: relative;
+}
+html[data-theme="light"] .orient-card { background-color: rgba(255, 255, 255, 0.85); }
+.orient-tag {
+  justify-self: start;
+  font-family: var(--mono);
+  font-size: 11px;
+  font-weight: 700;
+  letter-spacing: 0.12em;
+  color: var(--amber);
+  border: 1px solid rgba(255, 184, 77, 0.5);
+  padding: 2px 8px;
+  border-radius: 2px;
+}
+html[data-theme="light"] .orient-tag { border-color: rgba(138, 99, 0, 0.5); }
+.orient-card b { color: var(--text-hi); font-size: 12.5px; font-weight: 600; }
+.orient-card p { color: var(--text); font-size: 12px; line-height: 1.6; margin: 0; }
+.orient-card em { color: var(--amber); font-style: normal; }
+.orient-foot {
+  margin: 14px 0 0;
+  font-size: 12px;
+  line-height: 1.6;
+  color: var(--text-dim);
+}
+.orient-foot b { color: var(--text); font-weight: 600; }
+
+/* ── Lowe attack re-seal capsule ────────────────────────── */
+/* Shows Mallory stripping the outer public-key envelope and re-sealing the SAME
+   inner secret under a new key. The border colour + label carry the "which key"
+   state (not colour alone — the _pkX text and the lock glyph do too). */
+.reseal {
+  border: 1px solid var(--border);
+  background-color: var(--bg-1);
+  padding: 12px 14px 10px;
+  display: grid;
+  gap: 8px;
+}
+html[data-theme="light"] .reseal { background-color: rgba(255, 255, 255, 0.85); }
+.reseal-track {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 10px;
+}
+.reseal-seal {
+  font-family: var(--mono);
+  font-size: 11px;
+  letter-spacing: 0.06em;
+  padding: 4px 9px;
+  border: 1px solid var(--border-strong);
+  border-radius: 2px;
+  white-space: nowrap;
+}
+/* "from" seal is Mallory's key (rose = attacker lane); "to" is Bob's (amber). */
+.reseal-seal.from { color: var(--rose); border-color: rgba(255, 107, 127, 0.55); }
+.reseal-seal.to   { color: var(--amber); border-color: rgba(255, 184, 77, 0.55); }
+html[data-theme="light"] .reseal-seal.from { border-color: rgba(192, 31, 55, 0.55); }
+html[data-theme="light"] .reseal-seal.to   { border-color: rgba(138, 99, 0, 0.55); }
+.reseal-capsule {
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+  padding: 5px 10px;
+  border: 1px solid var(--border-strong);
+  border-radius: 20px;
+  background-color: var(--surface);
+  /* The capsule slides across Mallory's lane and its border pulses once from the
+     source-key colour to the target-key colour — the visible "re-seal". */
+  animation: reseal-slide 900ms ease both;
+}
+.has-reseal .reseal-capsule { will-change: transform; }
+.reseal-lock { font-size: 12px; line-height: 1; }
+.reseal-core {
+  font-family: var(--mono);
+  font-size: 12px;
+  color: var(--text-hi);
+  background: transparent;
+  border: none;
+  padding: 0;
+}
+.reseal-arrow { color: var(--text-dim); font-size: 13px; }
+.reseal-caption {
+  font-size: 11.5px;
+  line-height: 1.6;
+  color: var(--text);
+  margin: 0;
+}
+.reseal-caption b { color: var(--text-hi); font-weight: 500; }
+.reseal-caption code {
+  font-size: 10.5px;
+  padding: 0 4px;
+}
+@keyframes reseal-slide {
+  0%   { transform: translateX(-14px); border-color: rgba(255, 107, 127, 0.7); }
+  55%  { transform: translateX(6px); }
+  100% { transform: translateX(0); border-color: rgba(255, 184, 77, 0.7); }
+}
 
 /* ── Scenario explainer / Lowe diff ─────────────────────── */
 .explainer {

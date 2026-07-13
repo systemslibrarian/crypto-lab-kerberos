@@ -90,6 +90,48 @@ function explainerFor(key: ScenarioKey, accepted: boolean, extra?: string): stri
   return kerberosExplainer(accepted, extra);
 }
 
+// Anchored to the scenario change: the single biggest conceptual jump in the lab
+// is public-key (NS/Lowe) -> symmetric-key + trusted KDC (Kerberos). Without this
+// signpost a newcomer carries an "it's all one evolving protocol" model into the
+// hardest section. Shown only for the Kerberos scenario, above the swimlane.
+const KERBEROS_SIGNPOST = `<div class="signpost" role="note" aria-label="The cryptography just changed">
+  <span class="signpost-icon" aria-hidden="true">⇄</span>
+  <div>
+    <b>Heads up — the cryptography just changed.</b> Needham-Schroeder used
+    <em>public keys, one keypair per party</em>; the fix was to patch an
+    identity-binding bug in one message. Kerberos throws that model out: a single
+    <b>trusted Key Distribution Center (KDC)</b> shares a <em>symmetric</em>
+    long-term key with every principal and hands out short-lived tickets. Different
+    trust model, no per-party public keys, no identity-binding bug to patch — the
+    defenses below (replay cache, clock skew, ticket expiry) are what a KDC needs
+    instead.
+  </div>
+</div>`;
+
+// Three-box "why three round-trips" primer. Progressive disclosure: instead of
+// dropping all six Kerberos messages at once, name the three exchanges first.
+const KERBEROS_ORIENTATION = `<div class="orient" aria-label="The three Kerberos exchanges">
+  <span class="kicker">First, the shape — why three round-trips</span>
+  <div class="orient-grid">
+    <div class="orient-card">
+      <span class="orient-tag">AS</span>
+      <b>Prove your password, once.</b>
+      <p>The <em>Authentication Service</em> checks your key (derived from your password) and issues a <b>TGT</b> — a ticket that says “this client is authenticated.” You do this a single time per login.</p>
+    </div>
+    <div class="orient-card">
+      <span class="orient-tag">TGS</span>
+      <b>Trade the TGT for a service ticket.</b>
+      <p>The <em>Ticket-Granting Service</em> takes your TGT and mints a <b>service ticket</b> for one specific service. Your password is never touched again — the TGT stands in for it.</p>
+    </div>
+    <div class="orient-card">
+      <span class="orient-tag">AP</span>
+      <b>Present the ticket to the service.</b>
+      <p>The <em>Application exchange</em> hands the service ticket to the server with a fresh, timestamped <b>authenticator</b>. This is where replay and clock-skew defenses fire. Watch below.</p>
+    </div>
+  </div>
+  <p class="orient-foot">Splitting it three ways means your password proves identity <b>once</b>, then a cache of tickets does the rest — that is the whole point of single sign-on.</p>
+</div>`;
+
 function kerberosExplainer(accepted: boolean, reason?: string): string {
   const r = (reason ?? '').toLowerCase();
   let why = '';
@@ -162,11 +204,24 @@ export async function renderApp(root: HTMLElement): Promise<void> {
           </div>
           <div class="field" id="clock-field">
             <label for="clock">Clock offset (Kerberos)</label>
-            <input id="clock" type="range" min="-15" max="15" step="1" value="0" aria-describedby="clock-value" />
+            <input id="clock" type="range" min="-15" max="15" step="1" value="0" aria-describedby="clock-value clock-status" list="skew-ticks" />
+            <datalist id="skew-ticks">
+              <option value="-5"></option>
+              <option value="0"></option>
+              <option value="5"></option>
+            </datalist>
+            <div class="skew-scale" aria-hidden="true">
+              <span class="skew-mark" style="left: 33.33%;">−5</span>
+              <span class="skew-mark" style="left: 66.66%;">+5</span>
+              <span class="skew-band"></span>
+            </div>
           </div>
           <div class="field" id="clock-value-field">
             <label for="clock-value">Skew</label>
             <output id="clock-value" for="clock" aria-live="polite">0 min</output>
+            <span id="clock-status" class="skew-badge ok" role="status">
+              <span class="skew-badge-glyph" aria-hidden="true">✓</span> within ±5 min tolerance
+            </span>
           </div>
           <div class="field">
             <label>&nbsp;</label>
@@ -190,6 +245,18 @@ export async function renderApp(root: HTMLElement): Promise<void> {
   const clockField = byId<HTMLElement>('clock-field');
   const clockValueField = byId<HTMLElement>('clock-value-field');
   const clockValue = byId<HTMLOutputElement>('clock-value');
+  const clockStatus = byId<HTMLElement>('clock-status');
+
+  // Self-teaching skew badge: turns the ±5 min boundary into something you SEE as
+  // you drag, so the defense is discoverable without having to fail a run first.
+  function paintSkewBadge(offsetMin: number): void {
+    const withinTolerance = Math.abs(offsetMin) <= 5;
+    clockStatus.classList.toggle('ok', withinTolerance);
+    clockStatus.classList.toggle('bad', !withinTolerance);
+    clockStatus.innerHTML = withinTolerance
+      ? '<span class="skew-badge-glyph" aria-hidden="true">✓</span> within ±5 min tolerance'
+      : '<span class="skew-badge-glyph" aria-hidden="true">✗</span> SKEW — outside ±5 min, AP will reject';
+  }
   const blurb = byId<HTMLElement>('scenario-blurb');
   const flow = byId<HTMLElement>('flow');
   const inspectors = byId<HTMLElement>('inspectors');
@@ -351,6 +418,7 @@ export async function renderApp(root: HTMLElement): Promise<void> {
     const clientNowMs = baseNow + offset;
     const nowMs = baseNow;
     clockValue.textContent = `${offsetMin > 0 ? '+' : ''}${offsetMin} min`;
+    paintSkewBadge(offsetMin);
 
     const key = scenario.value as ScenarioKey;
     const meta = SCENARIOS.find((s) => s.key === key) ?? SCENARIOS[0];
@@ -424,7 +492,7 @@ export async function renderApp(root: HTMLElement): Promise<void> {
     if (superseded()) return;
     lastKerberos = kerberos;
     flow.innerHTML =
-      `${flowHeader(meta)}${renderKerberosFlow(kerberos.records)}` +
+      `${flowHeader(meta)}${KERBEROS_SIGNPOST}${KERBEROS_ORIENTATION}${renderKerberosFlow(kerberos.records)}` +
       resultLine(kerberos.apAccepted, kerberos.apAccepted ? 'AP exchange accepted.' : `AP exchange rejected: ${kerberos.apReason ?? 'unknown'}.`) +
       explainerFor(key, kerberos.apAccepted, kerberos.apReason);
 
@@ -448,11 +516,17 @@ export async function renderApp(root: HTMLElement): Promise<void> {
     const attacksHtml = await renderAttackPanel(nowMs, nowMs + 4 * 60 * 60 * 1000);
     if (superseded()) return;
     attacksWrap.classList.remove('hidden');
-    attacksWrap.innerHTML = `<div class="panel"><span class="kicker">Step 4 \u2014 Attack panel</span><h2>What can go wrong</h2><div class="attack-list">${attacksHtml}</div></div>`;
+    attacksWrap.innerHTML = `<div class="panel"><span class="kicker">Step 4 \u2014 Threat model</span><h2>What can go wrong</h2><p style="color: var(--text-dim); font-size: 12.5px; margin-bottom: 4px;">Grouped by the defense that stops each attack. Each card opens to show what an attacker tries and what Kerberos does about it. Hover the <span class="jargon" style="cursor:help;">dotted terms</span> for a definition.</p><div class="defense-groups">${attacksHtml}</div></div>`;
   }
 
   byId<HTMLButtonElement>('run').addEventListener('click', () => { void runScenario(); });
-  clock.addEventListener('input', () => { void runScenario(); });
+  clock.addEventListener('input', () => {
+    // Repaint the badge synchronously on every drag tick so the ±5 min boundary is
+    // felt live, even though the full crypto re-run is async and debounced by token.
+    paintSkewBadge(Number.parseInt(clock.value, 10));
+    clockValue.textContent = `${Number.parseInt(clock.value, 10) > 0 ? '+' : ''}${Number.parseInt(clock.value, 10)} min`;
+    void runScenario();
+  });
   scenario.addEventListener('change', () => { void runScenario(); });
 
   void runSelfCheck();

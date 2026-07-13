@@ -18,6 +18,17 @@ Kerberos (RFC 4120) is a trusted-third-party authentication protocol descended f
 
 Users can step through the original Needham-Schroeder flow, watch the Lowe attack succeed against it, apply Lowe's fix and watch the attack fail, then run the full Kerberos v5 AS/TGS/AP flow with real AES-256-CTS-HMAC-SHA1 encrypted tickets. The clock can be skewed live to watch replay and expiration defenses fire.
 
+The lab is built as a clickable historical timeline where each era exists because the previous one broke: attack found → one-line fix → redesign. Teaching aids layered on top for a first-time reader:
+
+1. **Timeline + message flow** — pick an era (Needham-Schroeder 1978, Lowe attack 1995, Lowe fix, Kerberos v5) and watch its swimlane play out message by message.
+2. **Lowe re-seal capsule** — when Mallory relays a message, an on-screen capsule shows the outer public-key envelope changing (`_pkM` → `_pkB`) while the sealed inner secret stays untouched, making "relay without decrypting" visible.
+3. **Crypto-changed signpost** — an anchored banner fires the moment you enter the Kerberos scenario, naming the shift from per-party public keys to a trusted KDC with symmetric session keys.
+4. **Three-exchange orientation card** — a "why three round-trips" primer (AS / TGS / AP) shown before the six-message flow, so the complexity is sequenced, not dumped.
+5. **Grouped threat model** — the attack outcomes are grouped by the defense that stops them (replay / clock skew / ticket expiry / key theft / the pre-Kerberos flaw), each an expandable card with "what an attacker tries" vs "what stops them", and hoverable definitions for terms like Kerberoasting, pass-the-ticket, and AS-REP roasting.
+6. **Self-teaching clock slider** — the ±5-minute tolerance is marked on the track with a live "within tolerance / SKEW" badge, so the skew defense is discoverable by dragging rather than only after a failure.
+
+Every outcome shown is computed live in the browser against the real cryptography; none of the teaching layer fakes a result.
+
 ## What Can Go Wrong
 
 - **Clock skew** - if a client drifts beyond the KDC's tolerance (commonly around 5 minutes), authentication fails outright because timestamps anchor the replay and expiry defenses.
