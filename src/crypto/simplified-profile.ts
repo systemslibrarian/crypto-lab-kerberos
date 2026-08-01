@@ -5,7 +5,7 @@ function toArrayBuffer(input: Uint8Array): ArrayBuffer {
 }
 
 /**
- * n-fold, as defined in RFC 3961 §5.3 (originally Blumenthal & Bellovin).
+ * n-fold, as defined in RFC 3961 §5.1 (originally Blumenthal & Bellovin).
  *
  * Replicates `input` while rotating each copy right by 13 bits, then folds the
  * pieces together with 1's-complement (end-around-carry) addition to produce
