@@ -256,7 +256,6 @@ html[data-theme="light"] .cl-header { background-color: #0e1f1e; }
   gap: 22px;
 }
 
-/* BEGIN cl-hero standard — managed, keep in sync across fleet */
 /* Accent/text mapped to this lab's theme vars (--teal accent, --text-dim,
    --border) so it clears axe contrast in both themes. Title uses the serif
    display face and --text-hi to match the lab's visual system. */
@@ -268,8 +267,7 @@ html[data-theme="light"] .cl-header { background-color: #0e1f1e; }
 .cl-hero-why{flex:0 1 min(40%,26rem);min-width:min(100%,15rem);border:1px solid var(--border);border-radius:10px;padding:.85rem 1.05rem;background:color-mix(in oklab,var(--teal) 6%,transparent);}
 .cl-hero-why-label{display:block;color:var(--teal);font-size:.68rem;font-weight:700;letter-spacing:.14em;}
 .cl-hero-why-text{margin:.35rem 0 0;color:var(--text);font-size:.95rem;line-height:1.5;}
-@media (max-width:640px){.cl-hero{flex-direction:column;}.cl-hero-why{flex-basis:auto;width:100%;}}
-/* END cl-hero standard */
+@media (max-width:640px){.cl-hero{flex-direction:column;}.cl-hero-main{flex-basis:auto;min-width:0;}.cl-hero-why{flex-basis:auto;width:100%;}}
 
 /* ── Section kicker (small label) ───────────────────────── */
 .kicker {
@@ -349,6 +347,8 @@ html[data-theme="light"] .panel {
 .controls select,
 .controls input[type='range'],
 .controls button {
+  /* WCAG 2.5.5 — 44px minimum touch target. */
+  min-height: 44px;
   font-family: var(--mono);
   color: var(--text-hi);
   background-color: var(--surface);
@@ -1262,6 +1262,8 @@ html[data-theme="light"] .reseal-seal.to   { border-color: rgba(138, 99, 0, 0.55
   align-items: center;
 }
 .action-row button {
+  /* WCAG 2.5.5 — 44px minimum touch target. */
+  min-height: 44px;
   font-family: var(--mono);
   font-size: 11px;
   letter-spacing: 0.12em;
