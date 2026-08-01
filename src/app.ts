@@ -3,11 +3,11 @@ import { renderETypePanel } from './ui/etype-panel';
 import { renderKerberosFlow, renderNsFlow } from './ui/message-flow';
 import { renderTicketInspector } from './ui/ticket-inspector';
 import { buildNsKeys, runNeedhamSchroeder } from './protocols/needham-schroeder';
-import { runNeedhamSchroederWithLoweFix } from './protocols/lowe-fix';
+import { runLoweAttackAgainstFix, runNeedhamSchroederWithLoweFix } from './protocols/lowe-fix';
 import { runLoweAttack } from './attacks/lowe-attack';
 import { KeyDistributionCenter, type TicketBody } from './principals/kdc';
 import { ServicePrincipal } from './principals/service';
-import { runKerberosV5, type KerberosRun } from './protocols/kerberos-v5';
+import { replayApReq, runKerberosV5, type KerberosRun } from './protocols/kerberos-v5';
 import { decryptAes256CtsHmacSha196, encryptAes256CtsHmacSha196 } from './crypto/etype-aes256';
 import { pbkdf2HmacSha1 } from './crypto/pbkdf2-string2key';
 import { dk, hex, utf8Bytes } from './crypto/simplified-profile';
@@ -24,7 +24,7 @@ interface ScenarioMeta {
 const SCENARIOS: ScenarioMeta[] = [
   { key: 'ns', label: 'Needham-Schroeder', year: '1978', blurb: 'Original public-key protocol — looks secure for 17 years.' },
   { key: 'lowe-attack', label: 'Lowe Attack', year: '1995', blurb: 'Gavin Lowe\u2019s man-in-the-middle on NSPK, found by FDR model checker.' },
-  { key: 'lowe-fix', label: 'Lowe Fix', year: '1995', blurb: 'Identity binding in message 2 — the one-line patch that closed it.' },
+  { key: 'lowe-fix', label: 'Lowe Fix', year: '1995', blurb: 'Identity binding in message 2 — the same relay re-run against the patched protocol, where it dies.' },
   { key: 'kerberos', label: 'Kerberos v5', year: 'RFC 4120', blurb: 'AS / TGS / AP exchanges with real AES-256-CTS-HMAC-SHA1-96.' },
 ];
 
@@ -81,10 +81,15 @@ function explainerFor(key: ScenarioKey, accepted: boolean, extra?: string): stri
     </div>`;
   }
   if (key === 'lowe-fix') {
-    return `<div class="explainer"><h3>The one-line patch</h3>
-      <p>Add Bob\u2019s identity to message 2. Alice now decrypts <code>{N<sub>a</sub>, N<sub>b</sub>, B}<sub>pk(A)</sub></code> and verifies the embedded name matches her intended peer. If Mallory tries to relay, the name inside is "Bob" but Alice was talking to Mallory — mismatch, abort.</p>
+    // `accepted` here means "the attack was blocked" — the flow above is the
+    // Lowe relay run against the PATCHED protocol, not an honest exchange.
+    return `<div class="explainer"><h3>The one-line patch, under attack</h3>
+      <p>Add Bob\u2019s identity to message 2. Alice now decrypts <code>{N<sub>a</sub>, N<sub>b</sub>, B}<sub>pk(A)</sub></code> and checks the embedded name against the peer she actually dialled. If Mallory relays, the name inside is "Bob" but Alice called Mallory — mismatch, abort.</p>
       ${LOWE_DIFF}
-      <p>${accepted ? '<b>Run accepted</b> — identity binding holds when Alice and Bob really are talking directly.' : `<b>Run aborted</b> — ${escape(extra ?? 'identity mismatch detected')}.`}</p>
+      <p>The flow above is <b>Mallory running the identical 1995 relay against the patched protocol</b> — same opening move, same re-seal, same relayed reply. Compare it step for step with <em>Lowe Attack</em>: only message 2 changed.</p>
+      <p>${accepted
+        ? `<b>The attack dies at step 4</b> — ${escape(extra ?? 'identity mismatch')}. Alice never returns N<sub>b</sub>, so Mallory has nothing to forward and Bob is never fooled: steps 5 and 6 of the attack simply never happen.`
+        : '<b>The attack completed</b> — the identity check did not fire.'}</p>
     </div>`;
   }
   return kerberosExplainer(accepted, extra);
@@ -152,6 +157,62 @@ function kerberosExplainer(accepted: boolean, reason?: string): string {
     ${why}
     <p>Try sliding the clock past <b>±5 min</b> and re-running. Then click <em>Replay last AP-REQ</em> below the tickets to watch the replay cache fire.</p>
   </div>`;
+}
+
+// Honest scope statement, on screen rather than only in the README. A teaching
+// demo earns trust by naming what it is NOT, and "raw bytes" in this lab means
+// JSON — a reader deserves to be told that without having to read the source.
+interface ScopeCard {
+  heading: string;
+  bullets: string[];
+}
+
+const SCOPE: ScopeCard[] = [
+  {
+    heading: 'What this models faithfully',
+    bullets: [
+      'aes256-cts-hmac-sha1-96 (etype 18) as specified: CTS-CBC over AES-256 plus a truncated HMAC-SHA1-96, with the RFC 3961 DK/DR key derivation and the RFC 4120 §7.5.1 key usage numbers.',
+      'string-to-key: PBKDF2-HMAC-SHA1 at 4096 iterations then n-fold/DK, checked live on every page load against the published RFC 3962 §B vector.',
+      'The AS / TGS / AP exchanges end to end, with each ticket encrypted under a key its holder cannot read (the krbtgt key for the TGT, the service key for the service ticket).',
+      'Pre-authentication: PA-ENC-TIMESTAMP (padata-type 2, key usage 1) is built by the client and verified by the KDC before any AS-REP is issued. The <code>pre-authent</code> ticket flag is set only when that verification actually happened.',
+      'The AS-REP nonce echo, the (cname, ctime, cusec) replay cache, the ±5-minute clock-skew check, and ticket starttime/endtime validation — each rejects real ciphertext, not a simulated failure.',
+      'Needham-Schroeder over real RSA-OAEP-2048, Lowe’s relay against it, and the same relay against the patched protocol.',
+    ],
+  },
+  {
+    heading: 'What this deliberately does NOT model',
+    bullets: [
+      '<b>ASN.1/DER.</b> Ticket bodies, authenticators, and everything shown under “Raw bytes” are JSON that is then encrypted for real. RFC 4120 puts DER on the wire; the ciphertext here is genuine, the encoding inside it is not.',
+      '<b>One realm, no cross-realm.</b> There is no inter-realm krbtgt, no referral chasing, no trust hierarchy.',
+      '<b>No PAC.</b> The Microsoft AD authorization-data blob (group SIDs and its signatures) is absent, so nothing here shows how Kerberos carries authorization rather than authentication.',
+      'No KRB-ERROR messages on the wire, no KDC option negotiation, no renewable/proxiable/forwardable ticket handling.',
+      'No network at all: no UDP/TCP port 88, no DNS SRV discovery, no credential cache on disk — the <code>klist -e</code> inspector is a rendering, not a real ccache.',
+      'One encryption type (18) and one kvno. No etype negotiation, no key rotation, no PKINIT, no FAST armoring, no OTP or smartcard pre-auth types.',
+    ],
+  },
+  {
+    heading: 'Where exactness is compressed for teaching',
+    bullets: [
+      'The AS exchange runs on the KDC clock: the client’s PA-ENC-TIMESTAMP is stamped with it, so the clock slider demonstrates skew at the AP exchange, where the threat panel explains it. A real KDC would <em>also</em> refuse a skewed AS-REQ with <code>KDC_ERR_PREAUTH_FAILED</code>.',
+      'The KDC and the service share one clock; the slider skews only the client relative to that pair.',
+      'The 1978 and 1995 scenarios use RSA-OAEP because that is what the browser offers. Needham-Schroeder predates OAEP; the relay property the attack turns on is unaffected by the padding.',
+      'The replay cache is an in-memory Map belonging to one service process, pruned by the skew window. Real deployments need this shared across every replica of a service.',
+      'The AS-REP-roasting exhibit in the threat panel cracks a deliberately weak password from a four-word list. Real offline cracking runs billions of candidates against the same ciphertext — the mechanism is identical, the scale is not.',
+    ],
+  },
+];
+
+function renderScopePanel(): string {
+  const cards = SCOPE.map(
+    (s) => `<div class="scope-card">
+      <h3>${escape(s.heading)}</h3>
+      <ul class="scope-list">${s.bullets.map((b) => `<li>${b}</li>`).join('')}</ul>
+    </div>`,
+  ).join('');
+  return `<span class="kicker">Honest limits</span>
+    <h2>What this demo is, and is not</h2>
+    <p style="color: var(--text-dim); font-size: 12.5px; margin-bottom: 10px;">The cryptography below the protocol is real and vector-checked. The protocol encoding above it is not RFC 4120 on the wire. Both statements matter, so both are on screen.</p>
+    <div class="scope-grid">${cards}</div>`;
 }
 
 function renderTimeline(active: ScenarioKey): string {
@@ -236,9 +297,12 @@ export async function renderApp(root: HTMLElement): Promise<void> {
       <section id="replay-mount" class="panel hidden" aria-label="Replay control"></section>
       <section id="etype-wrap" class="hidden" role="region" aria-label="Encryption type details"></section>
       <section id="attacks-wrap" class="hidden" role="region" aria-label="Attack outcomes"></section>
+      <section id="scope-panel" class="panel" aria-label="Scope and limitations"></section>
     </div>
   </div>
 `;
+
+  byId<HTMLElement>('scope-panel').innerHTML = renderScopePanel();
 
   const scenario = byId<HTMLSelectElement>('scenario');
   const clock = byId<HTMLInputElement>('clock');
@@ -273,7 +337,7 @@ export async function renderApp(root: HTMLElement): Promise<void> {
   // paints while it is still the latest.
   let runToken = 0;
 
-  function paintReplayPanel(replayBadge?: { ok: boolean; text: string }): void {
+  function paintReplayPanel(replayBadge?: { ok: boolean; text: string; note: string }): void {
     if (!lastKerberos || !lastKerberos.apAccepted) {
       replayMount.classList.add('hidden');
       replayMount.innerHTML = '';
@@ -281,34 +345,51 @@ export async function renderApp(root: HTMLElement): Promise<void> {
     }
     replayMount.classList.remove('hidden');
     const cacheSize = service.replayCache.size;
+    const apReqBytes = lastKerberos.lastApReq?.length ?? 0;
     const badge = replayBadge
       ? `<span class="badge ${replayBadge.ok ? 'ok' : 'bad'}">${escape(replayBadge.text)}</span>`
       : '';
+    const note = replayBadge ? `<p class="replay-note">${escape(replayBadge.note)}</p>` : '';
     replayMount.innerHTML = `
       <span class="kicker">Replay defense</span>
       <h2>Try to replay the AP-REQ</h2>
-      <p style="color: var(--text-dim); font-size: 12.5px;">The service stores <code>(cname, ctime, cusec)</code> for every accepted authenticator. Re-submitting the exact same ciphertext should be rejected even though the cipher and HMAC verify perfectly.</p>
+      <p style="color: var(--text-dim); font-size: 12.5px;">The service stores <code>(cname, ctime, cusec)</code> for every accepted authenticator. This button re-submits the <b>${apReqBytes} captured AP-REQ bytes</b> from the run above — the same ciphertext, unmodified — to the same service. It decrypts and its HMAC verifies exactly as before; it is refused anyway, purely on freshness.</p>
       <div class="action-row">
         <button id="replay-btn" type="button">Replay last AP-REQ</button>
         <span class="hint">Replay cache size: <b>${cacheSize}</b></span>
         ${badge}
-      </div>`;
+      </div>
+      ${note}`;
     const btn = document.getElementById('replay-btn');
     if (btn) {
       btn.addEventListener('click', () => {
-        if (!lastKerberos) return;
-        const { cname, ctime, cusec } = lastKerberos.lastAuth;
-        const replayKey = `${cname}:${ctime}:${cusec}`;
-        // The original AP-REQ succeeded, so this exact (cname, ctime, cusec) is
-        // already in the replay cache. Resubmitting the identical ciphertext —
-        // cipher and HMAC still verify perfectly — must still be refused. That
-        // is the whole point of the replay cache.
-        const rejected = service.hasReplay(replayKey);
-        paintReplayPanel(
-          rejected
-            ? { ok: false, text: 'rejected: replay cache hit' }
-            : { ok: true, text: 'accepted: no prior entry' },
-        );
+        void (async () => {
+          const run = lastKerberos;
+          if (!run || !run.lastApReq) return;
+          // A real replay: the captured authenticator ciphertext goes back to
+          // the service, which decrypts it under the ticket session key and
+          // verifies the HMAC-SHA1-96 tag before the freshness check ever runs.
+          const replayed = await replayApReq(
+            service,
+            run.serviceTicket,
+            run.lastAuth.cname,
+            run.clientSvcKey,
+            run.lastApReq,
+            run.serviceNowMs,
+          );
+          const verified = replayed.cryptoVerified
+            ? `AES-256-CTS decrypt + HMAC-SHA1-96 verify on ${run.lastApReq.length} resubmitted bytes: OK`
+            : 'the service could not decrypt the resubmitted bytes';
+          paintReplayPanel(
+            replayed.accepted
+              ? { ok: true, text: 'accepted', note: `${verified} — and no cache entry matched, so it was accepted.` }
+              : {
+                  ok: false,
+                  text: `rejected: ${replayed.reason ?? 'unknown'}`,
+                  note: `${verified} — the cryptography passed. Rejected afterwards: (cname, ctime, cusec) = (${run.lastAuth.cname}, ${run.lastAuth.ctime}, ${run.lastAuth.cusec}) was already in the replay cache.`,
+                },
+          );
+        })();
       });
     }
   }
@@ -471,12 +552,28 @@ export async function renderApp(root: HTMLElement): Promise<void> {
 
     if (key === 'lowe-fix') {
       const keys = await buildNsKeys();
-      const fixed = await runNeedhamSchroederWithLoweFix(keys);
+      // The point of the fix is what it does to the ATTACK, so that is what the
+      // flow shows: Mallory's relay, run against the patched protocol. The
+      // honest run is computed too, to prove the patch didn't break the
+      // protocol for legitimate parties — both results are live.
+      const underAttack = await runLoweAttackAgainstFix(keys);
+      const honest = await runNeedhamSchroederWithLoweFix(keys);
       if (superseded()) return;
       flow.innerHTML =
-        `${flowHeader(meta)}${renderNsFlow(fixed.messages, 'scenario-lowe-fix')}` +
-        resultLine(fixed.accepted, `Accepted: ${fixed.accepted}. Identity binding in message 2 blocks substitution.`) +
-        explainerFor(key, fixed.accepted, fixed.rejectedReason ?? undefined);
+        `${flowHeader(meta)}${renderNsFlow(underAttack.messages, 'scenario-lowe-fix')}` +
+        resultLine(
+          underAttack.aliceAborted && !underAttack.bobAccepted,
+          underAttack.aliceAborted
+            ? `Attack blocked at step 4 — ${underAttack.rejectedReason}. Bob accepted forged run: ${underAttack.bobAccepted}.`
+            : `Attack succeeded: Bob accepted forged run: ${underAttack.bobAccepted}.`,
+        ) +
+        resultLine(
+          honest.accepted,
+          honest.accepted
+            ? 'Honest direct run (Alice to Bob, no Mallory) still completes in 3 messages — the patch does not break legitimate use.'
+            : `Honest direct run rejected: ${honest.rejectedReason}.`,
+        ) +
+        explainerFor(key, underAttack.aliceAborted, underAttack.rejectedReason ?? undefined);
       inspectors.innerHTML = '';
       inspectors.classList.add('hidden');
       replayMount.innerHTML = '';

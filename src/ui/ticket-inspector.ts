@@ -28,7 +28,11 @@ function row(label: string, value: string, extraClass = ''): string {
 }
 
 function flagsRow(flags: string[]): string {
-  const chips = flags.map((f) => `<span class="flag">${escape(f)}</span>`).join('');
+  // No placeholder flags: a ticket shows only what the exchange that minted it
+  // actually established, and an empty set is rendered as such.
+  const chips = flags.length
+    ? flags.map((f) => `<span class="flag">${escape(f)}</span>`).join('')
+    : '<span class="flag none">(none set)</span>';
   return `<div class="ticket-line"><span>flags</span><div class="flag-row">${chips}</div></div>`;
 }
 

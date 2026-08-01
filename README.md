@@ -16,7 +16,7 @@ Kerberos (RFC 4120) is a trusted-third-party authentication protocol descended f
 
 **[systemslibrarian.github.io/crypto-lab-kerberos](https://systemslibrarian.github.io/crypto-lab-kerberos/)**
 
-Users can step through the original Needham-Schroeder flow, watch the Lowe attack succeed against it, apply Lowe's fix and watch the attack fail, then run the full Kerberos v5 AS/TGS/AP flow with real AES-256-CTS-HMAC-SHA1 encrypted tickets. The clock can be skewed live to watch replay and expiration defenses fire.
+Users can step through the original Needham-Schroeder flow, watch the Lowe attack succeed against it, then apply Lowe's fix and watch **the same relay re-run against the patched protocol** — Mallory is still on the wire, Bob still answers, and Alice aborts at message 2 on the identity mismatch. From there, run the full Kerberos v5 AS/TGS/AP flow with real AES-256-CTS-HMAC-SHA1 encrypted tickets, pre-authentication, and a replay button that re-submits the captured AP-REQ bytes verbatim. The clock can be skewed live to watch replay and expiration defenses fire.
 
 The lab is built as a clickable historical timeline where each era exists because the previous one broke: attack found → one-line fix → redesign. Teaching aids layered on top for a first-time reader:
 
@@ -26,8 +26,25 @@ The lab is built as a clickable historical timeline where each era exists becaus
 4. **Three-exchange orientation card** — a "why three round-trips" primer (AS / TGS / AP) shown before the six-message flow, so the complexity is sequenced, not dumped.
 5. **Grouped threat model** — the attack outcomes are grouped by the defense that stops them (replay / clock skew / ticket expiry / key theft / the pre-Kerberos flaw), each an expandable card with "what an attacker tries" vs "what stops them", and hoverable definitions for terms like Kerberoasting, pass-the-ticket, and AS-REP roasting.
 6. **Self-teaching clock slider** — the ±5-minute tolerance is marked on the track with a live "within tolerance / SKEW" badge, so the skew defense is discoverable by dragging rather than only after a failure.
+7. **In-app scope panel** — an on-screen statement of what the demo models faithfully, what it deliberately omits (ASN.1/DER, cross-realm, the PAC), and where exactness is compressed, so the limits are visible without reading the source.
 
-Every outcome shown is computed live in the browser against the real cryptography; none of the teaching layer fakes a result.
+Every outcome shown is computed live in the browser against the real cryptography; none of the teaching layer fakes a result. Concretely, that means:
+
+- The **Lowe fix** scenario runs Mallory's relay against the fixed protocol and reports whether Alice aborted — it is not an attacker-free run relabelled as a defense.
+- **Replay last AP-REQ** re-submits the captured authenticator ciphertext to the service, which decrypts it and verifies its HMAC-SHA1-96 before refusing it on freshness. It is not a cache lookup.
+- The **ticket-expiry** card is fed a genuinely expired ticket, and **AS-REP roasting** is demonstrated by issuing an AS-REP for a pre-auth-disabled account and cracking its `enc-part` from a dictionary in the browser — every pass/fail glyph in the threat panel comes from a value one of these runs returned.
+- **Pre-authentication** (PA-ENC-TIMESTAMP, key usage 1) is implemented and verified by the KDC, so the `pre-authent` ticket flag in the inspector is earned rather than decorative — and the roastable account is the exhibit for what happens without it.
+
+## Scope and Limitations
+
+The same statement is shown in the app itself, in the **What this demo is, and is not** panel.
+
+- **The cryptography is real; the encoding is not.** aes256-cts-hmac-sha1-96, the RFC 3961 DK/DR derivation, PBKDF2 × 4096, and the RFC 4120 key usage numbers are implemented as specified. But ticket bodies, authenticators, and everything shown under "Raw bytes" are **JSON** that is then encrypted — RFC 4120 puts ASN.1/DER on the wire.
+- **One realm.** No cross-realm referrals, no inter-realm krbtgt, no trust hierarchy.
+- **No PAC.** The Active Directory authorization-data blob and its signatures are absent, so nothing here shows how Kerberos carries authorization rather than authentication.
+- **Pre-authentication is PA-ENC-TIMESTAMP only.** No PKINIT, no FAST armoring, no hardware or OTP pre-auth types. The AS exchange is modelled on the KDC clock, so the clock slider demonstrates skew at the AP exchange; a real KDC would also reject a skewed AS-REQ with `KDC_ERR_PREAUTH_FAILED`.
+- **No network, no ccache.** No port 88, no DNS SRV discovery, no on-disk credential cache — the `klist -e` inspector is a rendering. One etype (18), one kvno, no negotiation or key rotation.
+- The 1978/1995 scenarios use **RSA-OAEP** because that is what the browser offers; Needham-Schroeder predates OAEP, and the relay property the attack turns on is unaffected by the padding.
 
 ## What Can Go Wrong
 
@@ -74,9 +91,13 @@ is validated against the **published RFC known-answer vectors**:
 - **PBKDF2-HMAC-SHA1** — cross-checked against Node's OpenSSL-backed
   implementation, an entirely independent code path.
 - **AES-256 block cipher** — the FIPS-197 known-answer vector (`test/cts.test.ts`).
-- **Protocol behaviour** — the Lowe attack succeeds against Needham-Schroeder,
-  the one-line fix blocks it, and the Kerberos clock-skew / replay / expiry
-  defenses each fire (`test/protocols.test.ts`).
+- **Protocol behaviour** — the Lowe attack succeeds against Needham-Schroeder
+  and the *same relay* is blocked by the one-line fix (both directions are
+  asserted, so the test fails if either regresses); a captured AP-REQ
+  re-submitted byte-for-byte still decrypts and HMAC-verifies but is refused on
+  freshness; pre-authentication gates the AS-REP and the `pre-authent` flag; and
+  the Kerberos clock-skew / replay / expiry defenses each fire
+  (`test/protocols.test.ts`).
 
 The same RFC 3962 §B string-to-key vector also runs live in the browser on every
 page load (the **Self-check** panel), so visitors can watch the in-browser

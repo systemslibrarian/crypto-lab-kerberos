@@ -1320,7 +1320,53 @@ html[data-theme="light"] .reseal-seal.to   { border-color: rgba(138, 99, 0, 0.55
 .selfcheck .check .name { font-family: var(--mono); font-size: 11.5px; color: var(--text-hi); }
 .selfcheck .check .msg  { font-family: var(--mono); font-size: 10.5px; color: var(--text-dim); margin-left: auto; text-align: right; }
 
+/* ── Replay panel result note ───────────────────────────── */
+.panel .replay-note {
+  margin-top: 10px;
+  font-family: var(--mono);
+  font-size: 11.5px;
+  line-height: 1.6;
+  color: var(--text-dim);
+  border-left: 2px solid var(--border-strong);
+  padding-left: 10px;
+}
+
+/* ── Scope panel ────────────────────────────────────────── */
+#scope-panel { --accent: var(--violet); }
+.scope-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(280px, 1fr));
+  gap: 14px;
+  margin-top: 6px;
+}
+.scope-card {
+  border: 1px solid var(--border);
+  background-color: var(--surface);
+  padding: 14px 16px;
+}
+.scope-card h3 {
+  font-family: var(--mono);
+  font-size: 12px;
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+  color: var(--violet);
+  margin-bottom: 10px;
+}
+.scope-list { margin: 0; padding-left: 18px; display: grid; gap: 8px; }
+.scope-list li { font-size: 12px; line-height: 1.6; color: var(--text); }
+.scope-list li::marker { color: var(--text-mute); }
+.scope-list b { color: var(--text-hi); font-weight: 600; }
+.scope-list em { color: var(--amber); font-style: normal; }
+.scope-list code {
+  font-size: 11px;
+  padding: 1px 4px;
+  border: 1px solid var(--border);
+  color: var(--text-hi);
+}
+.klist .flag.none { color: var(--text-mute); font-style: italic; }
+
 /* ── Light-theme overrides for new components ───────────── */
+html[data-theme="light"] .scope-card { background-color: rgba(255, 255, 255, 0.85); }
 html[data-theme="light"] .swim-arrow .arrow-head { filter: none; }
 html[data-theme="light"] .selfcheck .check, html[data-theme="light"] .action-row button { background-color: rgba(255, 255, 255, 0.85); }
 html[data-theme="light"] .swim-payload { background-color: rgba(255, 255, 255, 0.85); }

@@ -1,6 +1,6 @@
 import { decryptAes256CtsHmacSha196, encryptAes256CtsHmacSha196 } from '../crypto/etype-aes256';
 import { stringToKeyAes256 } from '../crypto/pbkdf2-string2key';
-import { KeyDistributionCenter, type AsRep, type EncTicket, type TicketBody, type TgsRep } from '../principals/kdc';
+import { KeyDistributionCenter, type AsRep, type EncTicket, type PaEncTimestamp, type TicketBody, type TgsRep } from '../principals/kdc';
 import { ServicePrincipal } from '../principals/service';
 
 export type KerberosParty = 'Client' | 'KDC' | 'Service';
@@ -22,6 +22,16 @@ export type KerberosRun = {
   serviceTicket: EncTicket;
   clientSvcKey: Uint8Array;
   lastAuth: { cname: string; ctime: number; cusec: number };
+  /**
+   * The exact AP-REQ authenticator ciphertext that went over the wire, kept so
+   * the UI can re-submit these *bytes* — not a lookup key — and watch the
+   * service decrypt them successfully and refuse them anyway.
+   */
+  lastApReq?: Uint8Array;
+  /** The service/KDC clock this run was judged against. */
+  serviceNowMs: number;
+  /** True only if the AS exchange verified a PA-ENC-TIMESTAMP. */
+  preauthenticated: boolean;
 };
 
 const encoder = new TextEncoder();
@@ -57,6 +67,9 @@ function randomUsec(): number {
 
 export const DEFAULT_SKEW_MS = 5 * 60 * 1000;
 
+// RFC 4120 §7.5.1 key usage 1 — PA-ENC-TIMESTAMP under the client long-term key.
+const KU_PA_ENC_TIMESTAMP = 1;
+
 export async function asExchange(
   kdc: KeyDistributionCenter,
   clientName: string,
@@ -64,8 +77,20 @@ export async function asExchange(
   kdcNowMs: number,
 ): Promise<{ asRep: AsRep; clientTgsKey: Uint8Array; records: FlowRecord[] }> {
   const nonce = `${kdcNowMs}-${clientName}`;
-  const asRep = await kdc.issueAsRep(clientName, nonce, kdcNowMs, 8 * 60 * 60 * 1000);
   const clientLongTerm = await stringToKeyAes256(password, `${kdc.realm}${clientName}`);
+
+  // Pre-authentication: the client encrypts a timestamp under its own long-term
+  // key and sends it *with* the AS-REQ. Only after this verifies does the KDC
+  // emit an enc-part derived from the password — which is exactly the step whose
+  // absence makes an account AS-REP-roastable.
+  const paCipher = await encryptAes256CtsHmacSha196(
+    clientLongTerm,
+    KU_PA_ENC_TIMESTAMP,
+    jsonBytes({ patimestamp: kdcNowMs, pausec: randomUsec() }),
+  );
+  const padata: PaEncTimestamp = { padataType: 2, cipher: paCipher.raw };
+
+  const asRep = await kdc.issueAsRep(clientName, nonce, kdcNowMs, 8 * 60 * 60 * 1000, padata);
   const clear = await decryptAes256CtsHmacSha196(clientLongTerm, 3, asRep.encPartForClient);
   const part = parse<{ ksession_tgs_hex: string; nonce: string; endtime: number; realm: string; sname: string }>(clear);
 
@@ -80,15 +105,27 @@ export async function asExchange(
       label: 'AS-REQ',
       from: 'Client',
       to: 'KDC',
-      bytesHex: toHex(jsonBytes({ client: clientName, realm: kdc.realm, nonce })),
-      decoded: { client: clientName, realm: kdc.realm, nonce },
+      bytesHex: toHex(jsonBytes({ client: clientName, realm: kdc.realm, nonce, padata: toHex(padata.cipher) })),
+      decoded: {
+        client: clientName,
+        realm: kdc.realm,
+        nonce,
+        'padata-type': '2 (PA-ENC-TIMESTAMP)',
+        'padata (enc-ts)': toHex(padata.cipher),
+      },
     },
     {
       label: 'AS-REP',
       from: 'KDC',
       to: 'Client',
       bytesHex: toHex(asRep.tgt.cipher),
-      decoded: { nonce: asRep.nonce, endtime: asRep.endtime, sname: asRep.sname, etype: '18' },
+      decoded: {
+        nonce: asRep.nonce,
+        endtime: asRep.endtime,
+        sname: asRep.sname,
+        etype: '18',
+        'pre-authenticated': String(asRep.preauthenticated),
+      },
     },
   ];
 
@@ -133,6 +170,17 @@ export async function tgsExchange(
   return { tgsRep, clientSvcKey: fromHex(clear.ksession_svc_hex), records };
 }
 
+export type ApResult = {
+  accepted: boolean;
+  apRep?: Uint8Array;
+  records: FlowRecord[];
+  reason?: string;
+  /** The authenticator ciphertext the service actually processed. */
+  apReqCipher?: Uint8Array;
+  /** True once the service decrypted the AP-REQ and its HMAC verified. */
+  cryptoVerified: boolean;
+};
+
 export async function apExchange(
   service: ServicePrincipal,
   serviceTicket: EncTicket,
@@ -141,59 +189,59 @@ export async function apExchange(
   clientNowMs: number,
   serviceNowMs: number,
   skewMs = DEFAULT_SKEW_MS,
-): Promise<{ accepted: boolean; apRep?: Uint8Array; records: FlowRecord[]; reason?: string }> {
+  /**
+   * When supplied, these exact bytes are submitted instead of minting a fresh
+   * authenticator — that is what makes "replay" a real replay: the service
+   * still runs AES-256-CTS decryption and HMAC-SHA1-96 verification over them
+   * before any freshness check gets a say.
+   */
+  resubmitAuthCipher?: Uint8Array,
+): Promise<ApResult> {
   const ticketClear = await decryptAes256CtsHmacSha196(fromHex(service.keyHex), 2, serviceTicket.cipher);
   const ticket = parse<TicketBody>(ticketClear);
 
   // The service validates the ticket lifetime against its own clock.
   if (serviceNowMs < ticket.starttime || serviceNowMs > ticket.endtime) {
-    return { accepted: false, reason: 'ticket expired', records: [] };
+    return { accepted: false, reason: 'ticket expired', records: [], cryptoVerified: false };
   }
 
-  // The client stamps the authenticator with its own (possibly skewed) clock.
-  const auth = {
-    cname: clientName,
-    ctime: clientNowMs,
-    cusec: randomUsec(),
-    cksum: toHex(encoder.encode('ap-req')),
-  };
-  const authCipher = await encryptAes256CtsHmacSha196(clientSvcKey, 11, jsonBytes(auth));
+  // The client stamps the authenticator with its own (possibly skewed) clock —
+  // unless we were handed captured bytes to resubmit verbatim.
+  let authCipherRaw: Uint8Array;
+  if (resubmitAuthCipher) {
+    authCipherRaw = resubmitAuthCipher;
+  } else {
+    const auth = {
+      cname: clientName,
+      ctime: clientNowMs,
+      cusec: randomUsec(),
+      cksum: toHex(encoder.encode('ap-req')),
+    };
+    authCipherRaw = (await encryptAes256CtsHmacSha196(clientSvcKey, 11, jsonBytes(auth))).raw;
+  }
 
-  const authClear = await decryptAes256CtsHmacSha196(fromHex(ticket.session_key_hex), 11, authCipher.raw);
-  const authOnService = parse<{ cname: string; ctime: number; cusec: number }>(authClear);
+  // Everything below this line is the SERVICE's view. The decrypt throws if the
+  // HMAC does not verify, so reaching the next statement is proof the cipher and
+  // tag were good — including on the replay path.
+  const authClear = await decryptAes256CtsHmacSha196(fromHex(ticket.session_key_hex), 11, authCipherRaw);
+  const authOnService = parse<{ cname: string; ctime: number; cusec: number; cksum?: string }>(authClear);
+  const record: FlowRecord = {
+    label: 'AP-REQ',
+    from: 'Client',
+    to: 'Service',
+    bytesHex: toHex(authCipherRaw),
+    decoded: authOnService as unknown as Record<string, string | number>,
+  };
+  const base = { apReqCipher: authCipherRaw, cryptoVerified: true };
 
   const replayKey = `${authOnService.cname}:${authOnService.ctime}:${authOnService.cusec}`;
   service.pruneReplay(skewMs, serviceNowMs);
   if (service.hasReplay(replayKey)) {
-    return {
-      accepted: false,
-      reason: 'replay cache hit',
-      records: [
-        {
-          label: 'AP-REQ',
-          from: 'Client',
-          to: 'Service',
-          bytesHex: toHex(authCipher.raw),
-          decoded: auth as unknown as Record<string, string | number>,
-        },
-      ],
-    };
+    return { ...base, accepted: false, reason: 'replay cache hit', records: [record] };
   }
 
   if (Math.abs(serviceNowMs - authOnService.ctime) > skewMs) {
-    return {
-      accepted: false,
-      reason: 'clock skew exceeded',
-      records: [
-        {
-          label: 'AP-REQ',
-          from: 'Client',
-          to: 'Service',
-          bytesHex: toHex(authCipher.raw),
-          decoded: auth as unknown as Record<string, string | number>,
-        },
-      ],
-    };
+    return { ...base, accepted: false, reason: 'clock skew exceeded', records: [record] };
   }
 
   service.rememberReplay(replayKey, serviceNowMs);
@@ -202,16 +250,11 @@ export async function apExchange(
   const apRep = await encryptAes256CtsHmacSha196(fromHex(ticket.session_key_hex), 12, apRepPlain);
 
   return {
+    ...base,
     accepted: true,
     apRep: apRep.raw,
     records: [
-      {
-        label: 'AP-REQ',
-        from: 'Client',
-        to: 'Service',
-        bytesHex: toHex(authCipher.raw),
-        decoded: auth as unknown as Record<string, string | number>,
-      },
+      record,
       {
         label: 'AP-REP',
         from: 'Service',
@@ -221,6 +264,24 @@ export async function apExchange(
       },
     ],
   };
+}
+
+/**
+ * Re-submit a captured AP-REQ authenticator, byte for byte, to the same
+ * service. Nothing is looked up: the service decrypts the ciphertext under the
+ * ticket session key and verifies the HMAC first — that part succeeds — and the
+ * request is refused afterwards, purely on freshness.
+ */
+export async function replayApReq(
+  service: ServicePrincipal,
+  serviceTicket: EncTicket,
+  clientName: string,
+  clientSvcKey: Uint8Array,
+  apReqCipher: Uint8Array,
+  serviceNowMs: number,
+  skewMs = DEFAULT_SKEW_MS,
+): Promise<ApResult> {
+  return apExchange(service, serviceTicket, clientName, clientSvcKey, serviceNowMs, serviceNowMs, skewMs, apReqCipher);
 }
 
 /**
@@ -259,5 +320,8 @@ export async function runKerberosV5(
     serviceTicket: tgs.tgsRep.serviceTicket,
     clientSvcKey: tgs.clientSvcKey,
     lastAuth,
+    lastApReq: ap.apReqCipher,
+    serviceNowMs,
+    preauthenticated: as.asRep.preauthenticated,
   };
 }

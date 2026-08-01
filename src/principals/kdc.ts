@@ -18,6 +18,23 @@ export type TicketBody = {
   sname: string;
 };
 
+/**
+ * PA-ENC-TIMESTAMP (RFC 4120 §5.2.7.2, padata-type 2): the client's proof that
+ * it already holds the long-term key, sent *with* the AS-REQ so the KDC never
+ * hands password-derived ciphertext to an unauthenticated requester.
+ */
+export type PaEncTimestamp = {
+  padataType: 2;
+  cipher: Uint8Array;
+};
+
+export const KDC_ERR_PREAUTH_REQUIRED = 'KDC_ERR_PREAUTH_REQUIRED';
+export const KDC_ERR_PREAUTH_FAILED = 'KDC_ERR_PREAUTH_FAILED';
+
+// RFC 4120 §7.5.1 key usage 1 — PA-ENC-TIMESTAMP encrypted with the client key.
+const KU_PA_ENC_TIMESTAMP = 1;
+const PREAUTH_SKEW_MS = 5 * 60 * 1000;
+
 export type AsRep = {
   tgt: EncTicket;
   encPartForClient: Uint8Array;
@@ -25,6 +42,12 @@ export type AsRep = {
   endtime: number;
   realm: string;
   sname: string;
+  preauthenticated: boolean;
+};
+
+type UserAccount = {
+  password: string;
+  requirePreauth: boolean;
 };
 
 export type TgsRep = {
@@ -68,7 +91,7 @@ export class KeyDistributionCenter {
   readonly realm: string;
   readonly tgsPrincipal: string;
   readonly tgsKey: Uint8Array;
-  readonly users = new Map<string, string>();
+  readonly users = new Map<string, UserAccount>();
   readonly services = new Map<string, Uint8Array>();
 
   constructor(realm: string) {
@@ -77,8 +100,17 @@ export class KeyDistributionCenter {
     this.tgsKey = randomBytes(32);
   }
 
-  async registerUser(name: string, password: string): Promise<void> {
-    this.users.set(name, password);
+  /**
+   * Register a principal. `requirePreauth` defaults to true, matching a modern
+   * KDC. Setting it false is what produces an AS-REP-roastable account — the
+   * exhibit the threat panel cracks live.
+   */
+  async registerUser(name: string, password: string, options: { requirePreauth?: boolean } = {}): Promise<void> {
+    this.users.set(name, { password, requirePreauth: options.requirePreauth ?? true });
+  }
+
+  requiresPreauth(name: string): boolean {
+    return this.users.get(name)?.requirePreauth ?? true;
   }
 
   registerService(serviceName: string, keyHex?: string): Uint8Array {
@@ -88,15 +120,50 @@ export class KeyDistributionCenter {
   }
 
   async buildClientKey(name: string): Promise<Uint8Array> {
-    const password = this.users.get(name);
-    if (!password) {
+    const account = this.users.get(name);
+    if (!account) {
       throw new Error('unknown user');
     }
-    return stringToKeyAes256(password, `${this.realm}${name}`);
+    return stringToKeyAes256(account.password, `${this.realm}${name}`);
   }
 
-  async issueAsRep(client: string, nonce: string, nowMs: number, lifetimeMs: number): Promise<AsRep> {
+  /**
+   * Verify a PA-ENC-TIMESTAMP. The client encrypted a timestamp under its own
+   * long-term key; if it decrypts and the HMAC verifies, the requester really
+   * does hold that key. Throws otherwise — nothing password-derived is emitted.
+   */
+  private async verifyPreauth(clientKey: Uint8Array, padata: PaEncTimestamp, nowMs: number): Promise<void> {
+    let stamp: { patimestamp: number; pausec: number };
+    try {
+      const clear = await decryptAes256CtsHmacSha196(clientKey, KU_PA_ENC_TIMESTAMP, padata.cipher);
+      stamp = parseJson<{ patimestamp: number; pausec: number }>(clear);
+    } catch {
+      throw new Error(`${KDC_ERR_PREAUTH_FAILED}: PA-ENC-TIMESTAMP did not decrypt under the client key`);
+    }
+    if (Math.abs(nowMs - stamp.patimestamp) > PREAUTH_SKEW_MS) {
+      throw new Error(`${KDC_ERR_PREAUTH_FAILED}: PA-ENC-TIMESTAMP outside the ±5 minute window`);
+    }
+  }
+
+  async issueAsRep(
+    client: string,
+    nonce: string,
+    nowMs: number,
+    lifetimeMs: number,
+    padata?: PaEncTimestamp,
+  ): Promise<AsRep> {
     const clientKey = await this.buildClientKey(client);
+
+    // Pre-authentication, for real: without it the KDC would hand a
+    // password-derived enc-part to anyone who asks (AS-REP roasting).
+    if (!padata && this.requiresPreauth(client)) {
+      throw new Error(`${KDC_ERR_PREAUTH_REQUIRED}: ${client} requires PA-ENC-TIMESTAMP in the AS-REQ`);
+    }
+    if (padata) {
+      await this.verifyPreauth(clientKey, padata, nowMs);
+    }
+    const preauthenticated = padata !== undefined;
+
     const ksessionTgs = randomBytes(32);
     const starttime = nowMs;
     const endtime = nowMs + lifetimeMs;
@@ -108,7 +175,12 @@ export class KeyDistributionCenter {
       starttime,
       endtime,
       authtime: nowMs,
-      flags: ['initial', 'forwardable'],
+      // Every flag here has to be earned by something this protocol actually
+      // did (RFC 4120 §2.1): 'initial' because the ticket came from an AS
+      // exchange rather than a TGS one, 'pre-authent' only when the
+      // PA-ENC-TIMESTAMP above really verified. 'forwardable' is absent
+      // because nothing in this demo requests or honours forwarding.
+      flags: preauthenticated ? ['initial', 'pre-authent'] : ['initial'],
       sname: this.tgsPrincipal,
     };
 
@@ -132,6 +204,7 @@ export class KeyDistributionCenter {
       endtime,
       realm: this.realm,
       sname: this.tgsPrincipal,
+      preauthenticated,
     };
   }
 
@@ -175,7 +248,9 @@ export class KeyDistributionCenter {
       starttime,
       endtime,
       authtime: tgtBody.authtime,
-      flags: ['pre-authenticated'],
+      // Inherited from the TGT, not asserted: a service ticket may only claim
+      // 'pre-authent' if the AS exchange that produced the TGT verified it.
+      flags: tgtBody.flags.filter((f) => f === 'pre-authent'),
       sname: serviceName,
     };
 

@@ -122,6 +122,8 @@ function nsNarrative(m: NSMessage): string {
     'M -> B: {Na, A}_pkB': '<b>Mallory</b> re-encrypts the inner payload under <b>Bob\u2019s</b> key and forwards it. Bob now thinks he\u2019s talking to Alice — the message looks identical to the legitimate one.',
     'B -> A: {Na, Nb}_pkA': '<b>Bob</b> echoes <b>N<sub>a</sub></b> back and adds his own nonce <b>N<sub>b</sub></b>. The original protocol does not name Bob inside this message — that is the <em>flaw</em>.',
     'B -> A: {Na, Nb, B}_pkA': 'The Lowe fix in one line: <b>Bob includes his identity</b> alongside the nonces. Now Alice can detect she\u2019s actually talking to someone other than Bob.',
+    'B -> M: {Na, Nb, B}_pkA': 'Same relay, patched protocol: Bob replies to the address the request came from (Mallory) \u2014 but he now <b>seals his own name inside</b> the envelope alongside the nonces.',
+    'M -> A: {Na, Nb, B}_pkA': '<b>Mallory still cannot open it</b>, so she relays it untouched \u2014 and that is what defeats her. The envelope says <code>B = "Bob"</code>, but Alice dialled <b>Mallory</b>. Mismatch: <b>Alice aborts here</b>, never returns N<sub>b</sub>, and Mallory has nothing left to forward.',
     'B -> M: {Na, Nb}_pkA': 'Bob encrypts the response under Alice\u2019s public key — but he sends it back to Mallory (since the network address came from her).',
     'M -> A: {Na, Nb}_pkA': '<b>Mallory cannot decrypt this</b> (it\u2019s under Alice\u2019s key) — but doesn\u2019t need to. She just relays it. Alice sees a valid response from "Mallory" carrying her nonce.',
     'A -> B: {Nb}_pkB': 'Alice proves she received <b>N<sub>b</sub></b> by sending it back encrypted to Bob. Both parties now believe they share secret nonces.',
@@ -181,7 +183,7 @@ const KRB_PARTIES: readonly KerberosParty[] = ['Client', 'KDC', 'Service'];
 
 function krbNarrative(label: string): string {
   const map: Record<string, string> = {
-    'AS-REQ': '<b>Client</b> asks the KDC\u2019s Authentication Service for a Ticket-Granting Ticket. No password is sent — just the principal name, realm, and a nonce.',
+    'AS-REQ': '<b>Client</b> asks the KDC\u2019s Authentication Service for a Ticket-Granting Ticket. It carries <b>PA-ENC-TIMESTAMP</b> — a timestamp encrypted under the password-derived key, proving the client already holds that key. That is <em>pre-authentication</em>, and the KDC verifies it before replying. No password itself is sent — just the principal name, realm, a nonce, and that encrypted timestamp.',
     'AS-REP': 'KDC returns the <b>TGT</b> (encrypted with the krbtgt key — opaque to the client) plus a session key encrypted under the client\u2019s long-term key, derived from the password via PBKDF2-HMAC-SHA1 × 4096.',
     'TGS-REQ': 'Client presents the TGT plus a fresh <b>authenticator</b> (cname + ctime) encrypted under the TGS session key, requesting a ticket for <code>http/web.lab.example</code>.',
     'TGS-REP': 'KDC validates the authenticator, mints a <b>service ticket</b> encrypted under the service\u2019s long-term key, and returns a new session key for client⇄service.',
