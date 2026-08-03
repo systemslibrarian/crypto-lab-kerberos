@@ -16,13 +16,13 @@ export default defineConfig({
     // dist/; without the build in front, a failing build leaves the previous
     // good bundle on disk and the suite passes green against code that no
     // longer compiles — silently invalidating mutation checks.
-    command: 'npm run build && npm run preview -- --port 4223 --strictPort',
-    url: 'http://localhost:4223/crypto-lab-kerberos/',
+    command: 'npm run build && npm run preview -- --port 4658 --strictPort',
+    url: 'http://localhost:4658/crypto-lab-kerberos/',
     reuseExistingServer: !process.env.CI,
   },
   projects: [{ name: 'chromium', use: { colorScheme: 'dark' } }],
   use: {
-    baseURL: 'http://localhost:4223/crypto-lab-kerberos/',
+    baseURL: 'http://localhost:4658/crypto-lab-kerberos/',
     colorScheme: 'dark',
   },
 });
