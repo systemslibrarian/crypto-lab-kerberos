@@ -16,7 +16,6 @@ const NEUTRALIZE_ANIM = `
   *, *::before, *::after {
     transition: none !important;
     animation: none !important;
-    opacity: 1 !important;
   }
 `;
 
