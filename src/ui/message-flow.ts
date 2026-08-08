@@ -175,7 +175,7 @@ export function renderNsFlow(messages: NSMessage[], scenarioClass = 'scenario-ns
   const steps = messages
     .map((m) => step(parties, scenarioClass, m.step, m.from, m.to, m.label, nsNarrative(m), m.decoded, m.payloadHex, isAttack ? resealFor(m) : undefined))
     .join('');
-  return `<div class="swim">${header(parties, dim)}${steps}</div>`;
+  return `<div class="swim" role="region" tabindex="0" aria-label="Protocol message flow (scroll horizontally to see all parties)">${header(parties, dim)}${steps}</div>`;
 }
 
 // ── Kerberos v5 ────────────────────────────────────────────
@@ -199,5 +199,5 @@ export function renderKerberosFlow(records: FlowRecord[]): string {
       step(KRB_PARTIES, 'scenario-kerberos', idx + 1, r.from, r.to, r.label, krbNarrative(r.label), r.decoded, r.bytesHex),
     )
     .join('');
-  return `<div class="swim">${header(KRB_PARTIES)}${steps}</div>`;
+  return `<div class="swim" role="region" tabindex="0" aria-label="Protocol message flow (scroll horizontally to see all parties)">${header(KRB_PARTIES)}${steps}</div>`;
 }

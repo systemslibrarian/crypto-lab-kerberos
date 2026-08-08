@@ -770,7 +770,14 @@ html[data-theme="light"] .footer-quote {
   gap: 22px;
   align-items: start;
 }
-.layout > .main { display: grid; gap: 22px; min-width: 0; }
+/* `minmax(0, 1fr)`, not the default `auto` track. `min-width: 0` fixes what this
+   element contributes to ITS parent; it does nothing about the track sizing its
+   own children. The narrow-viewport rule gives .swim-header/.swim-step a
+   `min-width: 420px`, which travelled up as min-content and sized this track to
+   420px — so every panel rendered 458px wide at a 380px viewport and the
+   document scrolled sideways, with .swim's own `overflow-x: auto` never getting
+   to scroll. Flooring the track at 0 puts the scrolling back inside .swim. */
+.layout > .main { display: grid; grid-template-columns: minmax(0, 1fr); gap: 22px; min-width: 0; }
 @media (max-width: 980px) {
   .layout { grid-template-columns: 1fr; }
 }
@@ -1238,6 +1245,19 @@ html[data-theme="light"] .reseal-seal.to   { border-color: rgba(138, 99, 0, 0.55
   animation: swim-in 360ms ease both;
   animation-delay: calc(var(--i, 1) * 90ms);
 }
+
+/* Cancelling an animation does NOT restore what it was going to do. The rule
+   above sets `opacity: 0` and relies on `swim-in` to bring it to 1, so the
+   global `animation: none` in the reduced-motion block left the entire
+   swim-lane diagram — this lab's core teaching content — permanently invisible
+   to anyone with the preference set. This override must live AFTER that rule:
+   both selectors are a single class, so source order decides. */
+@media (prefers-reduced-motion: reduce) {
+  .swim-step {
+    opacity: 1;
+    transform: none;
+  }
+}
 @keyframes swim-in {
   to { opacity: 1; transform: translateY(0); }
 }
@@ -1299,7 +1319,11 @@ html[data-theme="light"] .reseal-seal.to   { border-color: rgba(138, 99, 0, 0.55
 /* ── Self-check panel ───────────────────────────────────── */
 .selfcheck {
   display: grid;
-  grid-template-columns: repeat(auto-fit, minmax(220px, 1fr));
+  /* `min(220px, 100%)`, not a bare 220px: a fixed track minimum is a floor the
+     container cannot go below, so at 380px this grid demanded 458px and pushed
+     the document sideways (WCAG 1.4.10). Wrapping it in min() lets the track
+     collapse to the container on narrow screens while keeping 220px elsewhere. */
+  grid-template-columns: repeat(auto-fit, minmax(min(220px, 100%), 1fr));
   gap: 10px;
   margin-top: 6px;
 }
@@ -1310,6 +1334,10 @@ html[data-theme="light"] .reseal-seal.to   { border-color: rgba(138, 99, 0, 0.55
   display: flex;
   align-items: center;
   gap: 10px;
+  /* Flex items default to min-width: auto, which refuses to shrink below the
+     mono label's min-content and re-widens the track the rule above just fixed. */
+  min-width: 0;
+  flex-wrap: wrap;
 }
 .selfcheck .check .pip {
   flex-shrink: 0;

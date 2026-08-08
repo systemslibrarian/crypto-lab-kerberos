@@ -59,7 +59,7 @@ function fromHex(input: string): Uint8Array {
 
 const decoder = new TextDecoder();
 
-const LOWE_DIFF = `<div class="diff" aria-label="Lowe fix diff">
+const LOWE_DIFF = `<div class="diff" role="group" aria-label="Lowe fix diff">
   <div class="row del"><span class="sigil">−</span><span class="text">B → A : { N<sub>a</sub>, N<sub>b</sub> }<sub>pk(A)</sub></span></div>
   <div class="row add"><span class="sigil">+</span><span class="text">B → A : { N<sub>a</sub>, N<sub>b</sub>, <b>B</b> }<sub>pk(A)</sub></span></div>
 </div>`;
@@ -115,7 +115,7 @@ const KERBEROS_SIGNPOST = `<div class="signpost" role="note" aria-label="The cry
 
 // Three-box "why three round-trips" primer. Progressive disclosure: instead of
 // dropping all six Kerberos messages at once, name the three exchanges first.
-const KERBEROS_ORIENTATION = `<div class="orient" aria-label="The three Kerberos exchanges">
+const KERBEROS_ORIENTATION = `<div class="orient" role="group" aria-label="The three Kerberos exchanges">
   <span class="kicker">First, the shape — why three round-trips</span>
   <div class="orient-grid">
     <div class="orient-card">
