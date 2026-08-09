@@ -130,7 +130,16 @@ export async function boot(page: Page, theme: 'dark' | 'light'): Promise<void> {
 export async function expectNoHorizontalOverflow(page: Page, label: string): Promise<void> {
   const overflow = await page.evaluate(() => {
     const doc = document.documentElement;
-    if (doc.scrollWidth <= doc.clientWidth) return null;
+    // `body { overflow-x: hidden }` propagates to the viewport when `html`
+    // leaves `overflow` at `visible`, so `scrollWidth` stays equal to
+    // `clientWidth` even when content is CUT OFF — a worse 1.4.10 outcome than
+    // a scrollbar, and invisible to the standard check. This lab has that rule,
+    // so written unchanged this oracle would be permanently green. Detect the
+    // clipping directly instead of trusting the scroll geometry.
+    const clippedByViewport = ['hidden', 'clip'].includes(
+      getComputedStyle(document.body).overflowX,
+    );
+    if (!clippedByViewport && doc.scrollWidth <= doc.clientWidth) return null;
 
     // Only elements that actually push the DOCUMENT sideways are culprits. A
     // wide table inside an `overflow-x: auto` wrapper has a huge bounding rect
@@ -140,7 +149,13 @@ export async function expectNoHorizontalOverflow(page: Page, label: string): Pro
     // the real overflow was 15px of something else entirely.
     const clipped = (el: Element): boolean => {
       let n = el.parentElement;
-      while (n && n !== doc) {
+      // Stop BEFORE <body>. When `body { overflow-x: hidden }` propagates to the
+      // viewport, body itself answers "hidden" to this walk — so every element
+      // on the page reads as clipped, `escaping` is always empty, and the oracle
+      // reports nothing at all. That is the failure this whole check exists to
+      // avoid: a viewport-level clip is the DEFECT, not a legitimate scroller.
+      // Only a genuine scrolling container INSIDE the page excuses an overflow.
+      while (n && n !== doc && n !== document.body) {
         const ox = getComputedStyle(n).overflowX;
         if (ox === 'auto' || ox === 'scroll' || ox === 'hidden' || ox === 'clip') return true;
         n = n.parentElement;
@@ -154,7 +169,12 @@ export async function expectNoHorizontalOverflow(page: Page, label: string): Pro
       .sort((a, b) => b.r.right - a.r.right);
     // Prefer an unclipped culprit; fall back to the widest clipped one rather
     // than reporting nothing, so the message always names something to look at.
-    const widest = over.filter((x) => !clipped(x.el))[0] ?? over[0];
+    // Anything inside a real scroller is reachable and is not a finding; only
+    // what escapes the viewport with no way back is. With the viewport clipping,
+    // falling back to the widest CLIPPED element would report a decoy forever.
+    const escaping = over.filter((x) => !clipped(x.el));
+    if (!escaping.length) return null;
+    const widest = escaping[0];
     return {
       scrollWidth: doc.scrollWidth,
       clientWidth: doc.clientWidth,
