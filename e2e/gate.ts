@@ -103,16 +103,8 @@ export async function boot(page: Page, theme: 'dark' | 'light'): Promise<void> {
     await page.evaluate(() => matchMedia('(prefers-reduced-motion: reduce)').matches),
     'reduced-motion emulation must actually be in effect'
   ).toBe(true);
-  // This lab treats dark as the default and only stamps `data-theme` for light,
-  // so asserting the attribute equals "dark" would fail against a correct page.
-  if (theme === 'light') {
-    await expect(page.locator('html')).toHaveAttribute('data-theme', 'light');
-  } else {
-    expect(
-      await page.evaluate(() => document.documentElement.getAttribute('data-theme')),
-      'dark is the default theme and must not be stamped as light'
-    ).not.toBe('light');
-  }
+  // Dark is the only theme now, and the page stamps it explicitly.
+  await expect(page.locator('html')).toHaveAttribute('data-theme', 'dark');
 
   await expect(page.locator('#scenario')).toBeVisible();
   await expect(page.locator('#flow')).toBeVisible();

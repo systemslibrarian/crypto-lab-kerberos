@@ -11,7 +11,7 @@ import { boot, driveAllStates, expectBaselineNotStale, NARROW } from './gate';
  * oracle.
  */
 
-for (const theme of ['dark', 'light'] as const) {
+for (const theme of ['dark'] as const) {
   test(`no WCAG A/AA violations in ${theme} theme`, async ({ page }) => {
     test.setTimeout(600_000);
     await boot(page, theme);
