@@ -101,8 +101,9 @@ is validated against the **published RFC known-answer vectors**:
 
 The same RFC 3962 §B string-to-key vector also runs live in the browser on every
 page load (the **Self-check** panel), so visitors can watch the in-browser
-derivation reproduce the published key. CI (`.github/workflows/ci.yml`) runs the
-type-checker and the full suite on every push; deploys are gated on it.
+derivation reproduce the published key. CI (`.github/workflows/deploy.yml`) runs the
+type-checker and the full suite on every push and pull request, and the Pages deploy
+names that job in `needs:`, so a failure ships nothing.
 
 You can run the same checks locally:
 
