@@ -49,18 +49,12 @@ export async function ctsCbcEncrypt(key: Uint8Array, plaintext: Uint8Array): Pro
   }
   const aes = aesBlock(key);
   const m = plaintext.length;
-  const r = m % BLOCK_SIZE;
+  const r = m % BLOCK_SIZE || BLOCK_SIZE;
 
-  // Exact multiple of the block size (including a single block): plain CBC,
-  // zero IV, no stealing and no padding.
-  if (r === 0) {
-    const out = new Uint8Array(m);
-    let prev = new Uint8Array(BLOCK_SIZE);
-    for (let i = 0; i < m; i += BLOCK_SIZE) {
-      prev = aes.encrypt(xor(plaintext.subarray(i, i + BLOCK_SIZE), prev));
-      out.set(prev, i);
-    }
-    return out;
+  // RFC 3962 §5: a single block is ECB. Every longer input uses CS3,
+  // including aligned inputs, whose last two full CBC blocks are swapped.
+  if (m === BLOCK_SIZE) {
+    return aes.encrypt(plaintext);
   }
 
   const n = Math.ceil(m / BLOCK_SIZE);
@@ -81,8 +75,8 @@ export async function ctsCbcEncrypt(key: Uint8Array, plaintext: Uint8Array): Pro
   padded.set(last, 0);
   const yN = aes.encrypt(xor(padded, yN1));
 
-  // Swap: the full final block goes in the penultimate slot, the truncated
-  // previous block goes last (CS3 ordering).
+  // Swap: the full final block goes in the penultimate slot, the previous
+  // block goes last (CS3 ordering), truncated only for a partial final block.
   c.set(yN, (n - 2) * BLOCK_SIZE);
   c.set(yN1.subarray(0, r), (n - 1) * BLOCK_SIZE);
 
@@ -95,17 +89,10 @@ export async function ctsCbcDecrypt(key: Uint8Array, ciphertext: Uint8Array): Pr
   }
   const aes = aesBlock(key);
   const m = ciphertext.length;
-  const r = m % BLOCK_SIZE;
+  const r = m % BLOCK_SIZE || BLOCK_SIZE;
 
-  if (r === 0) {
-    const out = new Uint8Array(m);
-    let prev: Uint8Array = new Uint8Array(BLOCK_SIZE);
-    for (let i = 0; i < m; i += BLOCK_SIZE) {
-      const cblk = ciphertext.subarray(i, i + BLOCK_SIZE);
-      out.set(xor(aes.decrypt(cblk), prev), i);
-      prev = cblk;
-    }
-    return out;
+  if (m === BLOCK_SIZE) {
+    return aes.decrypt(ciphertext);
   }
 
   const n = Math.ceil(m / BLOCK_SIZE);
