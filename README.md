@@ -91,6 +91,10 @@ is validated against the **published RFC known-answer vectors**:
 - **PBKDF2-HMAC-SHA1** — cross-checked against Node's OpenSSL-backed
   implementation, an entirely independent code path.
 - **AES-256 block cipher** — the FIPS-197 known-answer vector (`test/cts.test.ts`).
+- **AES-CBC-CTS** — all six [RFC 3962 Appendix B](https://www.rfc-editor.org/rfc/rfc3962.html#appendix-B)
+  ciphertext vectors, checked independently for encryption and decryption,
+  including the final-two-block swap for aligned 32-, 48-, and 64-byte inputs
+  (`test/cts.test.ts`).
 - **Protocol behaviour** — the Lowe attack succeeds against Needham-Schroeder
   and the *same relay* is blocked by the one-line fix (both directions are
   asserted, so the test fails if either regresses); a captured AP-REQ
