@@ -213,8 +213,8 @@ export async function renderAttackPanel(nowMs: number, serviceEndtime: number): 
       ],
     },
     {
-      title: 'The pre-Kerberos flaw',
-      note: 'Why Kerberos exists at all — the bug in the public-key protocol it replaced, and the patch that closed it.',
+      title: 'The public-key Needham-Schroeder flaw',
+      note: 'A separate story from Kerberos: the 1995 flaw in the public-key Needham-Schroeder protocol, and the patch that closed it. Kerberos descends from the shared-key protocol in the same 1978 paper, hardened by Denning & Sacco’s 1981 timestamps (RFC 4120 §1) — not from this bug, which was found two years after Kerberos v5 was specified in RFC 1510.',
       cards: [
         {
           id: 'lowe', label: 'Lowe man-in-the-middle (unpatched Needham-Schroeder)', ok: !lowe.bobAccepted,

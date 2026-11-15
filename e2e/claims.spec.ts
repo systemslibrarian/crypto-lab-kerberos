@@ -80,7 +80,7 @@ function parseStamp(value: string): number {
  * without this a read races the previous scenario's DOM.
  */
 const LABELS: Record<string, string> = {
-  ns: 'Needham-Schroeder',
+  ns: 'Needham-Schroeder (public-key)',
   'lowe-attack': 'Lowe Attack',
   'lowe-fix': 'Lowe Fix',
   kerberos: 'Kerberos v5',
@@ -473,8 +473,17 @@ test('every defense card’s glyph matches the live result printed under it', as
     'Clock skew',
     'Ticket expiry',
     'Key theft & offline cracking',
-    'The pre-Kerberos flaw',
+    'The public-key Needham-Schroeder flaw',
   ]);
+
+  // The group that holds the Lowe cards says, on screen, that it is a separate
+  // story from Kerberos — the lineage RFC 4120 §1 actually gives — rather than
+  // the bug Kerberos was built to escape.
+  const loweGroupNote = page.locator('#attacks-wrap .defense-group-note').last();
+  await expect(loweGroupNote).toContainText('A separate story from Kerberos');
+  await expect(loweGroupNote).toContainText(
+    'hardened by Denning & Sacco’s 1981 timestamps (RFC 4120 §1) — not from this bug, which was found two years after Kerberos v5 was specified in RFC 1510',
+  );
 
   // Glyph, tag, screen-reader text and CSS state are four renderings of one
   // boolean; every card must render all four the same way, and none may be
@@ -528,7 +537,7 @@ test('every defense card’s glyph matches the live result printed under it', as
   expect(preauth.ok).toBe(true);
   expect(preauth.detail).toContain('PREAUTH_REQUIRED');
 
-  // The pre-Kerberos flaw, and the patch — the same two runs the flow shows.
+  // The public-key Needham-Schroeder flaw, and the patch — the same two runs the flow shows.
   const lowe = find('lowe man-in-the-middle');
   expect(lowe.ok).toBe(false);
   expect(lowe.detail).toBe('NS: Bob accepted forged run as Alice = true');
@@ -586,6 +595,35 @@ test('the timeline drives the scenario select, and each era renders its own pane
       else await expect(page.locator(sel)).toBeHidden();
     }
   }
+
+  // History, as the rail states it: two lineages, not one arc. The first era is
+  // the public-key protocol, Kerberos is dated before Lowe (RFC 1510, 1993) and
+  // given its own ancestry (RFC 4120 §1), and the note says which is which.
+  const rail = page.locator('#timeline-mount');
+  await expect(rail.locator('.kicker')).toHaveText('Two lineages');
+  await expect(rail.locator('li[data-key="ns"] .label')).toHaveText('Needham-Schroeder (public-key)');
+  await expect(rail.locator('li[data-key="kerberos"] .year')).toHaveText('1993 → 2005');
+  await expect(rail.locator('.timeline-note')).toContainText(
+    'descends from the shared-key Needham-Schroeder protocol via Denning & Sacco’s 1981 timestamps (RFC 4120 §1)',
+  );
+  await expect(rail.locator('.timeline-note')).toContainText('Kerberos v5 (RFC 1510, 1993) predates Lowe’s attack');
+
+  // The loop above ends on Kerberos, whose signpost carries the same lineage.
+  const signpost = page.locator('#flow .signpost');
+  await expect(signpost).toContainText('Kerberos did not grow out of that bug');
+  await expect(signpost).toContainText('modifications Denning and Sacco suggested in 1981');
+  await expect(signpost).toContainText('Kerberos v5 (RFC 1510, 1993) predates Lowe’s 1995 attack');
+
+  // The hero no longer draws an arrow from Lowe to Kerberos.
+  await expect(page.locator('.cl-hero-sub')).toHaveText(
+    'Public-key Needham-Schroeder · Lowe’s attack and fix · Kerberos v5 (RFC 4120)',
+  );
+  await expect(page.locator('.cl-hero-desc')).toContainText(
+    'a separate lineage that descends from the shared-key Needham-Schroeder protocol via Denning & Sacco’s 1981 timestamps',
+  );
+  await expect(page.locator('.cl-hero-why-text')).toContainText(
+    'the replay of a compromised key that Denning & Sacco pointed out in 1981',
+  );
 
   // The scope panel is always present — the lab states its limits everywhere.
   const scope = page.locator('#scope-panel');

@@ -857,6 +857,14 @@ html[data-theme="light"] .footer-quote {
   font-size: 14px;
   margin-top: 2px;
 }
+/* The rail's history note: the eras above are two lineages, not one arc, and the
+   note says which is which so the list order is never read as succession. */
+.timeline-note {
+  margin: 14px 0 0;
+  font-size: 11.5px;
+  line-height: 1.5;
+  color: var(--text-dim);
+}
 
 /* ── Swimlane ───────────────────────────────────────────── */
 .swim {

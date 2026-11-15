@@ -21,11 +21,11 @@ interface ScenarioMeta {
   blurb: string;
 }
 
-const SCENARIOS: ScenarioMeta[] = [
-  { key: 'ns', label: 'Needham-Schroeder', year: '1978', blurb: 'Original public-key protocol — looks secure for 17 years.' },
+export const SCENARIOS: ScenarioMeta[] = [
+  { key: 'ns', label: 'Needham-Schroeder (public-key)', year: '1978', blurb: 'The public-key protocol from Needham & Schroeder\u2019s 1978 paper — looks secure for 17 years. The same paper\u2019s shared-key protocol, not this one, is the ancestor of Kerberos.' },
   { key: 'lowe-attack', label: 'Lowe Attack', year: '1995', blurb: 'Gavin Lowe\u2019s man-in-the-middle on NSPK, found by FDR model checker.' },
   { key: 'lowe-fix', label: 'Lowe Fix', year: '1995', blurb: 'Identity binding in message 2 — the same relay re-run against the patched protocol, where it dies.' },
-  { key: 'kerberos', label: 'Kerberos v5', year: 'RFC 4120', blurb: 'AS / TGS / AP exchanges with real AES-256-CTS-HMAC-SHA1-96.' },
+  { key: 'kerberos', label: 'Kerberos v5', year: '1993 → 2005', blurb: 'A separate lineage, not the step after Lowe: Kerberos descends from the shared-key Needham-Schroeder protocol with Denning & Sacco\u2019s 1981 timestamps (RFC 4120 §1). Version 5 was specified in RFC 1510 (September 1993), two years before Lowe\u2019s attack, and superseded by RFC 4120 (July 2005). AS / TGS / AP exchanges with real AES-256-CTS-HMAC-SHA1-96.' },
 ];
 
 function byId<T extends Element>(id: string): T {
@@ -102,9 +102,9 @@ function explainerFor(key: ScenarioKey, accepted: boolean, extra?: string): stri
 const KERBEROS_SIGNPOST = `<div class="signpost" role="note" aria-label="The cryptography just changed">
   <span class="signpost-icon" aria-hidden="true">⇄</span>
   <div>
-    <b>Heads up — the cryptography just changed.</b> Needham-Schroeder used
-    <em>public keys, one keypair per party</em>; the fix was to patch an
-    identity-binding bug in one message. Kerberos throws that model out: a single
+    <b>Heads up — the cryptography just changed, and so did the lineage.</b> The three scenarios before this one used the <em>public-key</em> Needham-Schroeder protocol, one keypair per party; the fix patched an identity-binding bug in one message.
+    Kerberos did not grow out of that bug. RFC 4120 §1 says it is based in part on Needham and Schroeder\u2019s <em>trusted third-party</em> protocol — the shared-key one — with the modifications Denning and Sacco suggested in 1981: timestamps against the replay of a compromised key.
+    Kerberos v5 (RFC 1510, 1993) predates Lowe\u2019s 1995 attack. So here a single
     <b>trusted Key Distribution Center (KDC)</b> shares a <em>symmetric</em>
     long-term key with every principal and hands out short-lived tickets. Different
     trust model, no per-party public keys, no identity-binding bug to patch — the
@@ -215,9 +215,9 @@ function renderScopePanel(): string {
     <div class="scope-grid">${cards}</div>`;
 }
 
-function renderTimeline(active: ScenarioKey): string {
+export function renderTimeline(active: ScenarioKey): string {
   return `<aside class="timeline" aria-label="Timeline">
-    <span class="kicker">47 years</span>
+    <span class="kicker">Two lineages</span>
     <ol>
       ${SCENARIOS.map((s) => `<li data-key="${s.key}" class="${s.key === active ? 'active' : ''}">
           <button type="button" class="timeline-step"${s.key === active ? ' aria-current="true"' : ''}>
@@ -226,6 +226,7 @@ function renderTimeline(active: ScenarioKey): string {
           </button>
         </li>`).join('')}
     </ol>
+    <p class="timeline-note">The first three steps are one story: the public-key Needham-Schroeder protocol, Lowe\u2019s 1995 attack on it, and the one-line fix. Kerberos is a different story — it descends from the shared-key Needham-Schroeder protocol via Denning &amp; Sacco\u2019s 1981 timestamps (RFC 4120 §1), and Kerberos v5 (RFC 1510, 1993) predates Lowe\u2019s attack.</p>
   </aside>`;
 }
 
@@ -234,12 +235,12 @@ export async function renderApp(root: HTMLElement): Promise<void> {
   <header class="cl-hero">
     <div class="cl-hero-main">
       <h1 class="cl-hero-title">Kerberos</h1>
-      <p class="cl-hero-sub">Needham-Schroeder \u2192 Lowe fix \u2192 Kerberos v5 \u00b7 RFC 4120</p>
-      <p class="cl-hero-desc">Step through the arc from Needham-Schroeder (1978) and Lowe\u2019s man-in-the-middle fix (1995) to Kerberos v5, watching a KDC issue AES-256 tickets while replays and clock skew get rejected in real WebCrypto.</p>
+      <p class="cl-hero-sub">Public-key Needham-Schroeder \u00b7 Lowe\u2019s attack and fix \u00b7 Kerberos v5 (RFC 4120)</p>
+      <p class="cl-hero-desc">Step through the public-key Needham-Schroeder protocol (1978), Lowe\u2019s man-in-the-middle attack and fix (1995), and Kerberos v5 \u2014 a separate lineage that descends from the shared-key Needham-Schroeder protocol via Denning &amp; Sacco\u2019s 1981 timestamps \u2014 watching a KDC issue AES-256 tickets while replays and clock skew get rejected in real WebCrypto.</p>
     </div>
     <aside class="cl-hero-why" aria-label="Why it matters">
       <span class="cl-hero-why-label">WHY IT MATTERS</span>
-      <p class="cl-hero-why-text">Every domain login and single sign-on trusts a third party you never see. A subtle protocol flaw lets one attacker impersonate anyone \u2014 which is why Lowe\u2019s fix and Kerberos\u2019 replay and clock-skew defenses exist.</p>
+      <p class="cl-hero-why-text">Every domain login and single sign-on trusts a third party you never see. A subtle protocol flaw lets one attacker impersonate anyone \u2014 Lowe\u2019s fix closes one such flaw in the public-key protocol, and Kerberos\u2019 timestamps (with the clock-skew check and replay cache they require) answer a different one: the replay of a compromised key that Denning &amp; Sacco pointed out in 1981.</p>
     </aside>
   </header>
 
