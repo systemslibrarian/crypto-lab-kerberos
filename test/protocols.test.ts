@@ -2,10 +2,15 @@ import { beforeEach, describe, expect, it } from 'vitest';
 import { buildNsKeys, runNeedhamSchroeder } from '../src/protocols/needham-schroeder';
 import { runLoweAttackAgainstFix, runNeedhamSchroederWithLoweFix } from '../src/protocols/lowe-fix';
 import { runLoweAttack } from '../src/attacks/lowe-attack';
-import { KDC_ERR_PREAUTH_REQUIRED, KeyDistributionCenter } from '../src/principals/kdc';
+import {
+  KDC_ERR_PREAUTH_FAILED,
+  KDC_ERR_PREAUTH_REQUIRED,
+  KRB_AP_ERR_SKEW,
+  KeyDistributionCenter,
+} from '../src/principals/kdc';
 import { ServicePrincipal } from '../src/principals/service';
 import { replayApReq, runKerberosV5 } from '../src/protocols/kerberos-v5';
-import { decryptAes256CtsHmacSha196 } from '../src/crypto/etype-aes256';
+import { decryptAes256CtsHmacSha196, encryptAes256CtsHmacSha196 } from '../src/crypto/etype-aes256';
 import { stringToKeyAes256 } from '../src/crypto/pbkdf2-string2key';
 import { toHex } from './helpers';
 
@@ -220,6 +225,33 @@ describe('Pre-authentication (PA-ENC-TIMESTAMP)', () => {
     );
     const stBody = JSON.parse(new TextDecoder().decode(stClear)) as { flags: string[] };
     expect(stBody.flags).toContain('pre-authent');
+  });
+
+  it('separates a skewed PA-ENC-TIMESTAMP from one that did not decrypt', async () => {
+    // MIT krb5 does not collapse these into one answer. The encrypted-timestamp
+    // verifier calls krb5_check_clockskew (src/kdc/kdc_preauth_encts.c), which
+    // returns KRB5KRB_AP_ERR_SKEW -- error code 37 -- and filter_preauth_error
+    // (src/kdc/kdc_preauth.c) passes that code through to the client instead of
+    // reporting KDC_ERR_PREAUTH_FAILED. The wrong key keeps PREAUTH_FAILED.
+    const kdc = new KeyDistributionCenter('LAB.EXAMPLE');
+    await kdc.registerUser('alice', 'correct-horse-battery-staple');
+    const clientKey = await stringToKeyAes256(
+      'correct-horse-battery-staple',
+      'LAB.EXAMPLEalice',
+    );
+    const stamp = (atMs: number) =>
+      new TextEncoder().encode(JSON.stringify({ patimestamp: atMs, pausec: 0 }));
+
+    const skewed = await encryptAes256CtsHmacSha196(clientKey, 1, stamp(now - 6 * MIN));
+    await expect(
+      kdc.issueAsRep('alice', 'n', now, 8 * HOUR, { padataType: 2, cipher: skewed.raw }),
+    ).rejects.toThrow(KRB_AP_ERR_SKEW);
+
+    const wrongKey = await stringToKeyAes256('not-the-password', 'LAB.EXAMPLEalice');
+    const undecryptable = await encryptAes256CtsHmacSha196(wrongKey, 1, stamp(now));
+    await expect(
+      kdc.issueAsRep('alice', 'n', now, 8 * HOUR, { padataType: 2, cipher: undecryptable.raw }),
+    ).rejects.toThrow(KDC_ERR_PREAUTH_FAILED);
   });
 
   it('is what stands between an account and AS-REP roasting', async () => {

@@ -30,6 +30,11 @@ export type PaEncTimestamp = {
 
 export const KDC_ERR_PREAUTH_REQUIRED = 'KDC_ERR_PREAUTH_REQUIRED';
 export const KDC_ERR_PREAUTH_FAILED = 'KDC_ERR_PREAUTH_FAILED';
+// A skewed PA-ENC-TIMESTAMP is not a failed pre-auth check in MIT krb5: the
+// encrypted-timestamp verifier calls krb5_check_clockskew (kdc_preauth_encts.c),
+// which returns KRB5KRB_AP_ERR_SKEW, and filter_preauth_error passes that code
+// through to the client rather than collapsing it to PREAUTH_FAILED.
+export const KRB_AP_ERR_SKEW = 'KRB_AP_ERR_SKEW';
 
 // RFC 4120 §7.5.1 key usage 1 — PA-ENC-TIMESTAMP encrypted with the client key.
 const KU_PA_ENC_TIMESTAMP = 1;
@@ -141,7 +146,7 @@ export class KeyDistributionCenter {
       throw new Error(`${KDC_ERR_PREAUTH_FAILED}: PA-ENC-TIMESTAMP did not decrypt under the client key`);
     }
     if (Math.abs(nowMs - stamp.patimestamp) > PREAUTH_SKEW_MS) {
-      throw new Error(`${KDC_ERR_PREAUTH_FAILED}: PA-ENC-TIMESTAMP outside the ±5 minute window`);
+      throw new Error(`${KRB_AP_ERR_SKEW}: PA-ENC-TIMESTAMP outside the ±5 minute window`);
     }
   }
 

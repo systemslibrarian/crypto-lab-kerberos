@@ -193,7 +193,7 @@ const SCOPE: ScopeCard[] = [
   {
     heading: 'Where exactness is compressed for teaching',
     bullets: [
-      'The AS exchange runs on the KDC clock: the client’s PA-ENC-TIMESTAMP is stamped with it, so the clock slider demonstrates skew at the AP exchange, where the threat panel explains it. A real KDC would <em>also</em> refuse a skewed AS-REQ with <code>KDC_ERR_PREAUTH_FAILED</code>.',
+      'The AS exchange runs on the KDC clock: the client’s PA-ENC-TIMESTAMP is stamped with it, so the clock slider demonstrates skew at the AP exchange, where the threat panel explains it. A real KDC would <em>also</em> refuse a skewed AS-REQ — MIT krb5 answers that one with <code>KRB_AP_ERR_SKEW</code> (code 37), keeping <code>KDC_ERR_PREAUTH_FAILED</code> for a timestamp that did not decrypt.',
       'The KDC and the service share one clock; the slider skews only the client relative to that pair.',
       'The 1978 and 1995 scenarios use RSA-OAEP because that is what the browser offers. Needham-Schroeder predates OAEP; the relay property the attack turns on is unaffected by the padding.',
       'The replay cache is an in-memory Map belonging to one service process, pruned by the skew window. Real deployments need this shared across every replica of a service.',

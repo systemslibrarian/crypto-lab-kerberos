@@ -634,4 +634,9 @@ test('the timeline drives the scenario select, and each era renders its own pane
   await expect(scope).toContainText('ASN.1/DER');
   await expect(scope).toContainText('One realm, no cross-realm');
   await expect(scope).toContainText('No PAC');
+  // A skewed AS-REQ gets KRB_AP_ERR_SKEW from MIT krb5, not PREAUTH_FAILED.
+  await expect(scope).toContainText('KRB_AP_ERR_SKEW');
+  await expect(scope).not.toContainText(
+    /refuse a skewed AS-REQ with\s*KDC_ERR_PREAUTH_FAILED/,
+  );
 });

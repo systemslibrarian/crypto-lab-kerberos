@@ -44,7 +44,7 @@ The same statement is shown in the app itself, in the **What this demo is, and i
 - **The cryptography is real; the encoding is not.** aes256-cts-hmac-sha1-96, the RFC 3961 DK/DR derivation, PBKDF2 × 4096, and the RFC 4120 key usage numbers are implemented as specified. But ticket bodies, authenticators, and everything shown under "Raw bytes" are **JSON** that is then encrypted — RFC 4120 puts ASN.1/DER on the wire.
 - **One realm.** No cross-realm referrals, no inter-realm krbtgt, no trust hierarchy.
 - **No PAC.** The Active Directory authorization-data blob and its signatures are absent, so nothing here shows how Kerberos carries authorization rather than authentication.
-- **Pre-authentication is PA-ENC-TIMESTAMP only.** No PKINIT, no FAST armoring, no hardware or OTP pre-auth types. The AS exchange is modelled on the KDC clock, so the clock slider demonstrates skew at the AP exchange; a real KDC would also reject a skewed AS-REQ with `KDC_ERR_PREAUTH_FAILED`.
+- **Pre-authentication is PA-ENC-TIMESTAMP only.** No PKINIT, no FAST armoring, no hardware or OTP pre-auth types. The AS exchange is modelled on the KDC clock, so the clock slider demonstrates skew at the AP exchange; a real KDC would also reject a skewed AS-REQ — MIT krb5 answers that one with `KRB_AP_ERR_SKEW` (code 37) and reserves `KDC_ERR_PREAUTH_FAILED` for a timestamp that did not decrypt.
 - **No network, no ccache.** No port 88, no DNS SRV discovery, no on-disk credential cache — the `klist -e` inspector is a rendering. One etype (18), one kvno, no negotiation or key rotation.
 - The 1978/1995 scenarios use **RSA-OAEP** because that is what the browser offers; Needham-Schroeder predates OAEP, and the relay property the attack turns on is unaffected by the padding.
 
