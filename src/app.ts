@@ -67,7 +67,7 @@ const LOWE_DIFF = `<div class="diff" role="group" aria-label="Lowe fix diff">
 function explainerFor(key: ScenarioKey, accepted: boolean, extra?: string): string {
   if (key === 'ns') {
     return `<div class="explainer"><h3>What just happened</h3>
-      <p>Three messages, two parties, three nonces. Alice and Bob each end up convinced they share fresh secrets — and on a closed network they do. The protocol authenticates correctly when no one is in the middle.</p>
+      <p>Three messages, two parties, two nonces. Alice and Bob each end up convinced they share fresh secrets — and on a closed network they do. The protocol authenticates correctly when no one is in the middle.</p>
       <p><b>The catch:</b> message 2 (<code>{N<sub>a</sub>, N<sub>b</sub>}<sub>pk(A)</sub></code>) doesn\u2019t name Bob. If Alice was actually talking to a third party, she\u2019d still accept the response as if it were Bob\u2019s. Switch to <em>Lowe Attack</em> to watch that get exploited.</p>
     </div>`;
   }
