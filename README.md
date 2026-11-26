@@ -39,6 +39,8 @@ Every outcome shown is computed live in the browser against the real cryptograph
 
 ## Scope and Limitations
 
+In the Kerberos v5 exchange, the service verifies the client’s authenticator. The client decrypts the AP-REP using the ticket session key and checks both `ctime` and `cusec` against the values it sent before the lesson reports mutual authentication ([RFC 4120 §3.2.5](https://www.rfc-editor.org/rfc/rfc4120.html#section-3.2.5)).
+
 The same statement is shown in the app itself, in the **What this demo is, and is not** panel.
 
 - **The cryptography is real; the encoding is not.** aes256-cts-hmac-sha1-96, the RFC 3961 DK/DR derivation, PBKDF2 × 4096, and the RFC 4120 key usage numbers are implemented as specified. But ticket bodies, authenticators, and everything shown under "Raw bytes" are **JSON** that is then encrypted — RFC 4120 puts ASN.1/DER on the wire.

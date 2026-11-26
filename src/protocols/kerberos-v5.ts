@@ -170,7 +170,23 @@ export async function tgsExchange(
   return { tgsRep, clientSvcKey: fromHex(clear.ksession_svc_hex), records };
 }
 
+type AuthenticatorTime = { ctime: number; cusec: number };
+
+/** RFC 4120 §3.2.5. The client authenticates the reply against its own request. */
+export async function verifyApReply(
+  sessionKey: Uint8Array, reply: Uint8Array, sent: AuthenticatorTime,
+): Promise<boolean> {
+  try {
+    const clear = await decryptAes256CtsHmacSha196(sessionKey, 12, reply);
+    const echoed = parse<AuthenticatorTime>(clear);
+    return echoed.ctime === sent.ctime && echoed.cusec === sent.cusec;
+  } catch {
+    return false;
+  }
+}
+
 export type ApResult = {
+  sentTime?: AuthenticatorTime;
   accepted: boolean;
   apRep?: Uint8Array;
   records: FlowRecord[];
@@ -208,6 +224,7 @@ export async function apExchange(
   // The client stamps the authenticator with its own (possibly skewed) clock —
   // unless we were handed captured bytes to resubmit verbatim.
   let authCipherRaw: Uint8Array;
+  let sentTime: AuthenticatorTime | undefined;
   if (resubmitAuthCipher) {
     authCipherRaw = resubmitAuthCipher;
   } else {
@@ -217,6 +234,7 @@ export async function apExchange(
       cusec: randomUsec(),
       cksum: toHex(encoder.encode('ap-req')),
     };
+    sentTime = { ctime: auth.ctime, cusec: auth.cusec };
     authCipherRaw = (await encryptAes256CtsHmacSha196(clientSvcKey, 11, jsonBytes(auth))).raw;
   }
 
@@ -253,6 +271,7 @@ export async function apExchange(
     ...base,
     accepted: true,
     apRep: apRep.raw,
+    sentTime,
     records: [
       record,
       {
@@ -311,10 +330,14 @@ export async function runKerberosV5(
     ? (lastAuthRecord.decoded as unknown as { cname: string; ctime: number; cusec: number })
     : { cname: clientName, ctime: clientNowMs, cusec: 0 };
 
+  const clientVerified = ap.apRep && ap.sentTime
+    ? await verifyApReply(tgs.clientSvcKey, ap.apRep, ap.sentTime)
+    : false;
+
   return {
     records: [...as.records, ...tgs.records, ...ap.records],
-    apAccepted: ap.accepted,
-    apReason: ap.reason,
+    apAccepted: ap.accepted && clientVerified,
+    apReason: ap.accepted && !clientVerified ? "client could not authenticate AP-REP" : ap.reason,
     apRep: ap.apRep,
     tgt: as.asRep.tgt,
     serviceTicket: tgs.tgsRep.serviceTicket,

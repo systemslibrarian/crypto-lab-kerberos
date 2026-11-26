@@ -153,7 +153,7 @@ function kerberosExplainer(accepted: boolean, reason?: string): string {
   }
   return `<div class="explainer"><h3>Why Kerberos is different</h3>
     <p>No public-key crypto in the inner loop, no identity-binding bug to fix — instead, a <b>trusted KDC</b> mints short-lived tickets bound to specific (client, service) pairs. Every authenticator carries a timestamp; the service keeps a replay cache; clocks must agree within 5 minutes.</p>
-    <p>${accepted ? '<b>AP exchange accepted</b> — service authenticated the client and replied with mutual auth.' : '<b>AP exchange rejected.</b>'}</p>
+    <p>${accepted ? '<b>AP exchange accepted</b> — the service verified the client’s authenticator. The client decrypted the AP-REP and matched its timestamp and microsecond value to its request.' : '<b>AP exchange rejected.</b>'}</p>
     ${why}
     <p>Try sliding the clock past <b>±5 min</b> and re-running. Then click <em>Replay last AP-REQ</em> below the tickets to watch the replay cache fire.</p>
   </div>`;
